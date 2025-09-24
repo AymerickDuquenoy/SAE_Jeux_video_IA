@@ -1,11 +1,3 @@
-"""
-===========================================================================================================================
-= SAE Jeux Vidéo Sept. - Oct. 2025                                                                                        =
-= BUT 3 APP - IUT de Calais                                                                                               =
-= Auteurs : CHAGOT Manon, CONDETTE Albin, DELHAYE Florian, DOUILLY Quentin, DUQUENOY Aymerick                             =                                                            
-===========================================================================================================================                                                                             
-"""
-
 from dataclasses import dataclass
 from typing import Tuple
 
