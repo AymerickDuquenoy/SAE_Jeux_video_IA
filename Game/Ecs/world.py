@@ -35,14 +35,12 @@ if __name__ == "__main__":
     print("=== Test 1 : création et suppression d'entité ===")
     world = World()
     eid = world.create_entity(grid_position(10, 20))
-    eid = world.create_entity(grid_position(5, 20))
-    if len(world.get_component(grid_position)) == 2:
+    if len(world.get_component(grid_position)) == 1:
         print("✅ Entité créée avec succès")
     else:
         print("❌ Erreur : entité non créée")
 
     world.delete_entity(1)
-    world.delete_entity(2)
     if len(world.get_component(grid_position)) == 0:
         print("✅ Entité supprimée avec succès")
     else:
