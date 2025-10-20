@@ -1,0 +1,36 @@
+{
+  "terrain_types": {
+    "sand": {
+      "walkable": true,
+      "movement_multiplier": 1.0,
+      "texture": "assets/textures/sand_texture.png",
+      "color": [1.0, 0.9, 0.6, 1.0],
+      "description": "Sable normal - vitesse normale"
+    },
+    "quicksand": {
+      "walkable": true,
+      "movement_multiplier": 0.5,
+      "texture": "assets/textures/quicksand_texture.png",
+      "color": [0.8, 0.6, 0.3, 1.0],
+      "description": "Sables mouvants - vitesse divisée par 2"
+    },
+    "cactus": {
+      "walkable": false,
+      "movement_multiplier": 0.0,
+      "texture": "assets/textures/cactus_texture.png",
+      "model": "assets/models/cactus.blend",
+      "color": [0.2, 0.8, 0.2, 1.0],
+      "description": "Cactus - bloque le passage"
+    }
+  },
+  "grid_settings": {
+    "width": 30,
+    "height": 20,
+    "tile_size": 1.0,
+    "generation": {
+      "sand_probability": 0.65,
+      "quicksand_probability": 0.25,
+      "cactus_probability": 0.10
+    }
+  }
+}
