@@ -14,7 +14,6 @@ class StatsTracker:
     degats_total: float = 0.0
     niv_pyramide: int = 0
 
-    # Petites aides d'update
     def add_unit(self, n: int = 1) -> None:
         if n > 0:
             self.unites_achetees += n
