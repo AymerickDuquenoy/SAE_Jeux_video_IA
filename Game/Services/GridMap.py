@@ -45,8 +45,8 @@ if __name__ == "__main__":
     screen = pygame.display.set_mode((800, 600))
     pygame.display.set_caption("Carte Tiled avec terrains et obstacles")
 
-    # 🔹 Charge la carte (ton fichier TMX exporté de Tiled)
-    map_file = r"D:\I.U.T\But3\S5\SAE_JV\SAE_Jeux_video_IA\Game\Services\mapTest.tmx"
+    # 🔹 Charge la carte
+    map_file = "Game/assets/map/map.tmx"
     game_map = GridMap(map_file)
 
     clock = pygame.time.Clock()
