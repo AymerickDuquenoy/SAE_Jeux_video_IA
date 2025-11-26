@@ -1,151 +1,351 @@
+"""A* pathfinding utilities.
+
+This module provides:
+- `astar(grid_map, start, goal, allow_diagonal=False)` which dispatches based on
+  the provided map: if `grid_map` has attribute `tiles` it is treated as the
+  project's `GridMap` (uses `GridTile` attributes `walkable` and `speed`),
+  otherwise if it's a 2D numpy array it will run A* on that array (0=free, 1=blocked).
+
+The implementation for `GridMap` uses tile `speed` to weight movement cost (slower
+tiles are more expensive). The numpy-grid implementation uses unit costs.
+"""
+from typing import List, Tuple, Dict, Optional, Sequence
 import heapq
-from typing import Dict, List, Optional, Tuple, Set
+import math
 
-import esper
-
-from Game.Ecs.Components.grid_position import GridPosition
-from Game.Ecs.Components.path import Path
-from Game.Ecs.Components.pathProgress import PathProgress
-from Game.Ecs.Components.pathRequest import PathRequest
+Point = Tuple[int, int]
 
 
-class AStarPathfindingSystem(esper.Processor):
+def _heuristic(a: Point, b: Point, diagonal: bool) -> float:
+    dx = abs(a[0] - b[0])
+    dy = abs(a[1] - b[1])
+    if diagonal:
+        # Octile distance
+        F = math.sqrt(2) - 1
+        return (dx + dy) + (F * min(dx, dy)) - min(dx, dy)
+    return dx + dy
+
+
+def _neighbors_4_8(pos: Point, width: Optional[int], height: Optional[int], diagonal: bool) -> List[Point]:
+    x, y = pos
+    nbrs = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+    if diagonal:
+        nbrs += [(x + 1, y + 1), (x + 1, y - 1), (x - 1, y + 1), (x - 1, y - 1)]
+    if width is None or height is None:
+        return nbrs
+    out = []
+    for nx, ny in nbrs:
+        if 0 <= nx < width and 0 <= ny < height:
+            out.append((nx, ny))
+    return out
+
+
+def astar_gridmap(grid_map, start: Point, goal: Point, allow_diagonal: bool = False) -> Optional[List[Point]]:
+    """A* using `GridMap` / `GridTile` objects.
+
+    - `grid_map` must expose `.tiles` iterable and optionally `.width` and `.height`.
+    - Each tile must have `.x`, `.y`, `.walkable` and `.speed` attributes.
+    - `start` and `goal` are `(x,y)` tile coordinates.
     """
-    Système ECS : calcule les chemins A* sur une grille 2D (4 voisins).
+    # Build lookup
+    tile_map: Dict[Point, object] = {}
+    for t in getattr(grid_map, "tiles", []):
+        tile_map[(t.x, t.y)] = t
 
-    Esper v3 : pas de World object.
-    -> On utilise les fonctions module-level : esper.get_components, esper.add_component, etc.
+    # Determine max speed for scaling
+    speeds = [getattr(t, "speed", 0) for t in tile_map.values() if getattr(t, "speed", 0) > 0]
+    max_speed = max(speeds) if speeds else 1.0
 
-    - Heuristique : Manhattan (|dx| + |dy|).
-    - Déclenchement : toute entité ayant GridPosition + PathRequest.
-    - Résultat : ajoute Path(noeuds=[...]) + PathProgress(index=0) puis retire PathRequest.
+    def cost(a: Point, b: Point) -> float:
+        tile = tile_map.get(b)
+        if tile is None or not getattr(tile, "walkable", True):
+            return float("inf")
+        s = float(getattr(tile, "speed", max_speed))
+        base = 1.0
+        if a[0] != b[0] and a[1] != b[1]:
+            base *= math.sqrt(2)
+        # slower tiles => higher cost
+        return base * (max_speed / s)
 
-    Le système a besoin d'une grille de navigation (nav_grid) fournissant au minimum :
-        - width, height
-        - is_walkable(x, y) -> bool
-        - movement_cost(x, y) -> float  (optionnel, si absent on considère 1.0)
-    """
+    width = getattr(grid_map, "width", None)
+    height = getattr(grid_map, "height", None)
 
-    def __init__(self, nav_grid, *, allow_goal_blocked: bool = False, max_search: Optional[int] = None):
-        super().__init__()
-        self.grid = nav_grid
-        self.allow_goal_blocked = allow_goal_blocked
-        self.max_search = max_search
+    open_heap = []
+    g_score: Dict[Point, float] = {start: 0.0}
+    came_from: Dict[Point, Point] = {}
+    f0 = _heuristic(start, goal, allow_diagonal)
+    counter = 0
+    heapq.heappush(open_heap, (f0, counter, start))
+    closed = set()
 
-    def process(self, dt: float):
-        # Esper v3 -> pas self.world.get_components
-        for ent, (pos, req) in esper.get_components(GridPosition, PathRequest):
-            start = (pos.x, pos.y)
-            goal = (req.goal.x, req.goal.y)
+    while open_heap:
+        _, _, current = heapq.heappop(open_heap)
+        if current == goal:
+            # reconstruct
+            path = [current]
+            while current in came_from:
+                current = came_from[current]
+                path.append(current)
+            path.reverse()
+            return path
 
-            nodes = self._astar(start, goal)
-
-            # on remplace les anciens chemins si présents
-            if esper.has_component(ent, Path):
-                esper.remove_component(ent, Path)
-            if esper.has_component(ent, PathProgress):
-                esper.remove_component(ent, PathProgress)
-
-            if nodes:
-                path_nodes = [GridPosition(x, y) for (x, y) in nodes]
-                esper.add_component(ent, Path(noeuds=path_nodes))
-                esper.add_component(ent, PathProgress(index=0))
-
-            # dans tous les cas, la requête a été traitée
-            if esper.has_component(ent, PathRequest):
-                esper.remove_component(ent, PathRequest)
-
-    # ------------------------------
-    # A* core
-    # ------------------------------
-    def _astar(self, start: Tuple[int, int], goal: Tuple[int, int]) -> List[Tuple[int, int]]:
-        if not self._in_bounds(*start) or not self._in_bounds(*goal):
-            return []
-
-        if not self._is_walkable(*start):
-            return []
-
-        if not self._is_walkable(*goal) and not self.allow_goal_blocked:
-            return []
-
-        open_heap: List[Tuple[float, float, Tuple[int, int]]] = []
-        g_score: Dict[Tuple[int, int], float] = {start: 0.0}
-        came_from: Dict[Tuple[int, int], Tuple[int, int]] = {}
-        closed: Set[Tuple[int, int]] = set()
-
-        h0 = self._heuristic(start, goal)
-        heapq.heappush(open_heap, (h0, 0.0, start))
-
-        expansions = 0
-
-        while open_heap:
-            f, g, current = heapq.heappop(open_heap)
-
-            if current in closed:
+        closed.add(current)
+        for nbr in _neighbors_4_8(current, width, height, allow_diagonal):
+            if nbr in closed:
                 continue
-            closed.add(current)
+            tile = tile_map.get(nbr)
+            if tile is None or not getattr(tile, "walkable", True):
+                continue
+            tentative = g_score.get(current, float("inf")) + cost(current, nbr)
+            if tentative < g_score.get(nbr, float("inf")):
+                came_from[nbr] = current
+                g_score[nbr] = tentative
+                f = tentative + _heuristic(nbr, goal, allow_diagonal)
+                counter += 1
+                heapq.heappush(open_heap, (f, counter, nbr))
 
-            if current == goal:
-                return self._reconstruct_path(came_from, current)
+    return None
 
-            expansions += 1
-            if self.max_search is not None and expansions > self.max_search:
-                break
 
-            for nx, ny in self._neighbors(*current):
-                neighbor = (nx, ny)
+def astar_numpy(grid, start: Point, goal: Point, allow_diagonal: bool = True) -> Optional[List[Point]]:
+    """A* over a 2D numpy-like grid (indexable as grid[x,y]), where 0 = free, 1 = blocked.
 
-                if neighbor in closed:
-                    continue
+    `start` and `goal` are (x,y) tuples.
+    """
+    try:
+        import numpy as _np
+    except Exception:
+        _np = None
 
-                if not self._is_walkable(nx, ny) and neighbor != goal:
-                    continue
+    # Support sequences of sequences too
+    rows = len(grid)
+    cols = len(grid[0]) if rows else 0
 
-                tentative_g = g_score[current] + self._movement_cost(nx, ny)
+    def is_blocked(p: Point) -> bool:
+        x, y = p
+        return grid[x][y] != 0
 
-                if tentative_g < g_score.get(neighbor, float("inf")):
-                    came_from[neighbor] = current
-                    g_score[neighbor] = tentative_g
-                    nf = tentative_g + self._heuristic(neighbor, goal)
-                    heapq.heappush(open_heap, (nf, tentative_g, neighbor))
+    open_heap = []
+    g_score: Dict[Point, float] = {start: 0.0}
+    came_from: Dict[Point, Point] = {}
+    f0 = _heuristic(start, goal, allow_diagonal)
+    counter = 0
+    heapq.heappush(open_heap, (f0, counter, start))
+    closed = set()
 
-        return []
+    while open_heap:
+        _, _, current = heapq.heappop(open_heap)
+        if current == goal:
+            path = [current]
+            while current in came_from:
+                current = came_from[current]
+                path.append(current)
+            path.reverse()
+            return path
 
-    def _reconstruct_path(
-        self,
-        came_from: Dict[Tuple[int, int], Tuple[int, int]],
-        current: Tuple[int, int],
-    ) -> List[Tuple[int, int]]:
-        path = [current]
-        while current in came_from:
-            current = came_from[current]
-            path.append(current)
-        path.reverse()
-        return path
+        closed.add(current)
+        for nbr in _neighbors_4_8(current, rows, cols, allow_diagonal):
+            if nbr in closed:
+                continue
+            if is_blocked(nbr):
+                continue
+            # movement cost
+            step_cost = math.sqrt(2) if (nbr[0] != current[0] and nbr[1] != current[1]) else 1.0
+            tentative = g_score.get(current, float("inf")) + step_cost
+            if tentative < g_score.get(nbr, float("inf")):
+                came_from[nbr] = current
+                g_score[nbr] = tentative
+                f = tentative + _heuristic(nbr, goal, allow_diagonal)
+                counter += 1
+                heapq.heappush(open_heap, (f, counter, nbr))
 
-    # ------------------------------
-    # Helpers grille
-    # ------------------------------
-    def _heuristic(self, a: Tuple[int, int], b: Tuple[int, int]) -> float:
-        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+    return None
 
-    def _in_bounds(self, x: int, y: int) -> bool:
-        return 0 <= x < int(self.grid.width) and 0 <= y < int(self.grid.height)
 
-    def _neighbors(self, x: int, y: int) -> List[Tuple[int, int]]:
-        return [
-            (x + 1, y),
-            (x - 1, y),
-            (x, y + 1),
-            (x, y - 1),
-        ]
+def astar(grid_map_or_grid, start: Point, goal: Point, allow_diagonal: bool = False) -> Optional[List[Point]]:
+    """Dispatching helper: accepts either a `GridMap` (has `.tiles`) or a 2D grid (list or numpy array).
 
-    def _is_walkable(self, x: int, y: int) -> bool:
-        if hasattr(self.grid, "is_walkable"):
-            return bool(self.grid.is_walkable(x, y))
-        return True
+    Returns list of (x,y) points or None when no path found.
+    """
+    # If object has tiles attribute -> GridMap
+    if hasattr(grid_map_or_grid, "tiles"):
+        return astar_gridmap(grid_map_or_grid, start, goal, allow_diagonal=allow_diagonal)
 
-    def _movement_cost(self, x: int, y: int) -> float:
-        if hasattr(self.grid, "movement_cost"):
-            return float(self.grid.movement_cost(x, y))
-        return 1.0
+    # Otherwise treat as 2D grid
+    return astar_numpy(grid_map_or_grid, start, goal, allow_diagonal=allow_diagonal)
+
+
+if __name__ == "__main__":
+    print("AStar module: use astar(grid_map_or_grid, start, goal, allow_diagonal=False)")
+from typing import List, Tuple, Dict, Set
+import numpy as np
+import heapq
+import matplotlib.pyplot as plt
+from math import sqrt
+def create_node(position: Tuple[int, int], g: float = float('inf'), 
+                h: float = 0.0, parent: Dict = None) -> Dict:
+    """
+    Create a node for the A* algorithm.
+    
+    Args:
+        position: (x, y) coordinates of the node
+        g: Cost from start to this node (default: infinity)
+        h: Estimated cost from this node to goal (default: 0)
+        parent: Parent node (default: None)
+    
+    Returns:
+        Dictionary containing node information
+    """
+    return {
+        'position': position,
+        'g': g,
+        'h': h,
+        'f': g + h,
+        'parent': parent
+    }
+    
+def calculate_heuristic(pos1: Tuple[int, int], pos2: Tuple[int, int]) -> float:
+    """
+    Calculate the estimated distance between two points using Euclidean distance.
+    """
+    x1, y1 = pos1
+    x2, y2 = pos2
+    return sqrt((x2 - x1)**2 + (y2 - y1)**2)
+def get_valid_neighbors(grid: np.ndarray, position: Tuple[int, int]) -> List[Tuple[int, int]]:
+    """
+    Get all valid neighboring positions in the grid.
+    
+    Args:
+        grid: 2D numpy array where 0 represents walkable cells and 1 represents obstacles
+        position: Current position (x, y)
+    
+    Returns:
+        List of valid neighboring positions
+    """
+    x, y = position
+    rows, cols = grid.shape
+    
+    # All possible moves (including diagonals)
+    possible_moves = [
+        (x+1, y), (x-1, y),    # Right, Left
+        (x, y+1), (x, y-1),    # Up, Down
+        (x+1, y+1), (x-1, y-1),  # Diagonal moves
+        (x+1, y-1), (x-1, y+1)
+    ]
+    
+    return [
+        (nx, ny) for nx, ny in possible_moves
+        if 0 <= nx < rows and 0 <= ny < cols  # Within grid bounds
+        and grid[nx, ny] == 0                # Not an obstacle
+    ]
+def reconstruct_path(goal_node: Dict) -> List[Tuple[int, int]]:
+    """
+    Reconstruct the path from goal to start by following parent pointers.
+    """
+    path = []
+    current = goal_node
+    
+    while current is not None:
+        path.append(current['position'])
+        current = current['parent']
+        
+    return path[::-1]  # Reverse to get path from start to goal
+def find_path(grid: np.ndarray, start: Tuple[int, int], 
+              goal: Tuple[int, int]) -> List[Tuple[int, int]]:
+    """
+    Find the optimal path using A* algorithm.
+    
+    Args:
+        grid: 2D numpy array (0 = free space, 1 = obstacle)
+        start: Starting position (x, y)
+        goal: Goal position (x, y)
+    
+    Returns:
+        List of positions representing the optimal path
+    """
+    # Initialize start node
+    start_node = create_node(
+        position=start,
+        g=0,
+        h=calculate_heuristic(start, goal)
+    )
+    
+    # Initialize open and closed sets
+    open_list = [(start_node['f'], start)]  # Priority queue
+    open_dict = {start: start_node}         # For quick node lookup
+    closed_set = set()                      # Explored nodes
+    
+    while open_list:
+        # Get node with lowest f value
+        _, current_pos = heapq.heappop(open_list)
+        current_node = open_dict[current_pos]
+        
+        # Check if we've reached the goal
+        if current_pos == goal:
+            return reconstruct_path(current_node)
+            
+        closed_set.add(current_pos)
+        
+        # Explore neighbors
+        for neighbor_pos in get_valid_neighbors(grid, current_pos):
+            # Skip if already explored
+            if neighbor_pos in closed_set:
+                continue
+                
+            # Calculate new path cost
+            tentative_g = current_node['g'] + calculate_heuristic(current_pos, neighbor_pos)
+            
+            # Create or update neighbor
+            if neighbor_pos not in open_dict:
+                neighbor = create_node(
+                    position=neighbor_pos,
+                    g=tentative_g,
+                    h=calculate_heuristic(neighbor_pos, goal),
+                    parent=current_node
+                )
+                heapq.heappush(open_list, (neighbor['f'], neighbor_pos))
+                open_dict[neighbor_pos] = neighbor
+            elif tentative_g < open_dict[neighbor_pos]['g']:
+                # Found a better path to the neighbor
+                neighbor = open_dict[neighbor_pos]
+                neighbor['g'] = tentative_g
+                neighbor['f'] = tentative_g + neighbor['h']
+                neighbor['parent'] = current_node
+    
+    return []  # No path found
+
+
+
+
+
+
+""" test code
+def visualize_path(grid: np.ndarray, path: List[Tuple[int, int]]):
+    plt.figure(figsize=(10, 10))
+    plt.imshow(grid, cmap='binary')
+    
+    if path:
+        path = np.array(path)
+        plt.plot(path[:, 1], path[:, 0], 'b-', linewidth=3, label='Path')
+        plt.plot(path[0, 1], path[0, 0], 'go', markersize=15, label='Start')
+        plt.plot(path[-1, 1], path[-1, 0], 'ro', markersize=15, label='Goal')
+    
+    plt.grid(True)
+    plt.legend(fontsize=12)
+    plt.title("A* Pathfinding Result")
+    plt.show()
+    # Create a sample grid
+grid = np.zeros((20, 20))  # 20x20 grid, all free space initially
+# Add some obstacles
+grid[5:15, 5] = 1  # Vertical wall
+grid[5, 5:15] = 1   # Horizontal wall
+# Define start and goal positions
+start_pos = (0, 1)
+goal_pos = (19, 18)
+# Find the path
+path = find_path(grid, start_pos, goal_pos)
+if path:
+    print(f"Path found with {len(path)} steps!")
+    visualize_path(grid, path)
+else:
+    print("No path found!")"""
