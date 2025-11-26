@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from grid_position import GridPosition
+from .grid_position import GridPosition
+
 
 @dataclass
 class PathRequest:

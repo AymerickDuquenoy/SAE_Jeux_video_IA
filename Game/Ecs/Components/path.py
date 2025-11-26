@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import List
-from grid_position import GridPosition
+from .grid_position import GridPosition
+
 
 @dataclass
 class Path:
