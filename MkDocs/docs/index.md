@@ -1,11 +1,21 @@
-# Antique War – Documentation Officielle
+# Antique War – Guide Utilisateur
 
-Bienvenue dans la documentation du **Game Design** de *Antique War*, un jeu de stratégie en temps réel où deux pharaons s’affrontent pour détruire la pyramide ennemie.
+Bienvenue dans la documentation officielle d’**Antique War**, un jeu de stratégie en temps réel se déroulant dans le désert égyptien.
 
-Naviguez via le menu pour découvrir :
+Ce guide s’adresse aux joueurs qui veulent :
 
-- L’univers et le contexte du jeu  
-- Le fonctionnement d’une partie  
-- L’économie  
-- Les unités disponibles  
-- Les terrains et obstacles  
+- comprendre rapidement **le but du jeu** ;
+- apprendre **comment jouer une partie** ;
+- découvrir les **unités**, les **terrains** et l’**économie** ;
+- progresser grâce à quelques **stratégies**.
+
+---
+
+## Comment utiliser ce guide
+
+- Commence par **[Présentation du jeu](presentation.md)** pour comprendre l’univers.
+- Lis ensuite **[Objectif & Règles](objectifs.md)** pour savoir exactement comment gagner.
+- Va dans **“Jouer une Partie”** pour les détails sur l’interface, les unités, les terrains et les évènements.
+- Termine par les sections **Stratégies** pour t’améliorer.
+
+Bonne lecture, Pharaon.

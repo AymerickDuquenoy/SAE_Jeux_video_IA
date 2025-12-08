@@ -1,15 +1,37 @@
-# Présentation de *Antique War*
+# Présentation du jeu
 
-## Son Histoire
-Nous sommes en Égypte, en des temps oubliés. L’ordre s’est effondré, et le chaos règne entre la pyramide de Khéops et celle de Khéphren. Tandis que des pharaons autoproclamés se disputent la double couronne, les dieux détournent leur regard.
+Antique War est un jeu de **stratégie en temps réel** qui oppose deux pharaons dans un désert situé entre les pyramides de Khéops et Khéphren.
 
-Vous incarnez l’un de ces souverains, dans le but de défendre votre pyramide tout en envoyant vos troupes détruire celle de l’ennemi. Le désert devient votre champ de bataille : invoquez vos troupes, manipulez les forces imprévisibles du désert et dominez votre adversaire.
+Vous contrôlez :
 
-## Son But
-*Antique War* est un jeu de stratégie en temps réel dont l’objectif principal est de **détruire la pyramide ennemie**.
+- une **pyramide**, votre base principale ;
+- une **production automatique** de coups de fouet 𓍯 (la ressource du jeu) ;
+- des **unités de combat** à invoquer ;
+- des **choix stratégiques** sur le terrain.
 
-Pour y parvenir, vous devez :
+---
 
-- Invoquer des troupes grâce à la monnaie (𓍯)
-- Améliorer votre pyramide
-- Déployer une stratégie d’attaque et de défense
+## Contexte narratif
+
+L’ordre s’est effondré en Égypte.  
+Des pharaons autoproclamés se disputent la double couronne. Les dieux détournent leur regard, et le désert devient une arène de guerre.
+
+Votre pyramide n’est pas qu’un tombeau :
+
+- c’est une **forteresse sacrée**,
+- un **symbole de pouvoir**,
+- l’ultime cible de votre adversaire.
+
+---
+
+## Type de jeu
+
+- Genre : **Stratégie en temps réel (RTS)**  
+- Joueurs : **2**  
+- Durée d’une partie : **quelques minutes**  
+- Style de jeu : dynamique, axé sur :
+  - la gestion de ressources,
+  - le choix du moment pour attaquer,
+  - le positionnement sur le terrain.
+
+Antique War est pensé pour être simple à comprendre, mais assez riche pour récompenser les joueurs expérimentés.
