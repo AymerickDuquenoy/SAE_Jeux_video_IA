@@ -15,7 +15,6 @@ Ce guide s’adresse aux joueurs qui veulent :
 
 - Commence par **[Présentation du jeu](presentation.md)** pour comprendre l’univers.
 - Lis ensuite **[Objectif & Règles](objectifs.md)** pour savoir exactement comment gagner.
-- Va dans **“Jouer une Partie”** pour les détails sur l’interface, les unités, les terrains et les évènements.
-- Termine par les sections **Stratégies** pour t’améliorer.
+- Va dans **[Jouer une Partie](interface.md)** pour les détails sur l’interface, les unités, les terrains et les évènements.
 
 Bonne lecture, Pharaon.
