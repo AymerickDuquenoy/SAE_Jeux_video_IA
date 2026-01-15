@@ -1,72 +1,126 @@
 # Unités
 
-Les unités sont vos principaux outils pour attaquer et défendre.  
-Elles consomment des 𓍯 lorsqu’elles sont invoquées et se distinguent par leur **coût**, leur **vitesse**, leurs **dégâts** et leurs **points de vie**.
+Les unités sont au cœur de votre stratégie dans **Antique War**.  
+Chaque type a un rôle précis, un coût en 𓍯, et un impact différent sur le champ de bataille.
 
 ---
 
 ## Momie
 
-- **Type :** Unité légère  
-- **Coût :** 10𓍯  
-- **Vitesse :** 10  
-- **Dégâts :** 8  
-- **Points de vie :** 15  
+<div class="unit-card">
+  <div class="unit-image-wrapper">
+    <img src="/images/Momie.png" class="unit-image" alt="Momie">
+  </div>
 
-Rôle :
+  <div class="unit-content">
+    <h2>Momie</h2>
+    <p class="unit-role">Unité légère – rapide mais fragile</p>
 
-- unité peu résistante mais très rapide ;
-- idéale pour :
-  - mettre la pression en début de partie,
-  - servir de diversion,
-  - saturer la défense ennemie par le nombre.
+    <p>
+      La Momie est votre unité de base. Individuellement faible, elle devient dangereuse en groupe.
+      Elle excelle pour mettre la pression tôt dans la partie et gêner l’adversaire.
+    </p>
+
+    <dl class="unit-stats">
+      <div>
+        <dt>Coût</dt><dd>10𓍯</dd>
+      </div>
+      <div>
+        <dt>Vitesse</dt><dd>10</dd>
+      </div>
+      <div>
+        <dt>Dégâts</dt><dd>8</dd>
+      </div>
+      <div>
+        <dt>Points de vie</dt><dd>15</dd>
+      </div>
+    </dl>
+
+    <p class="unit-summary">
+      <strong>À utiliser pour :</strong> harcèlement, diversion, saturation du terrain.
+    </p>
+  </div>
+</div>
 
 ---
 
 ## Dromadaire blindé
 
-- **Type :** Unité intermédiaire  
-- **Coût :** 25𓍯  
-- **Vitesse :** 6  
-- **Dégâts :** 20  
-- **Points de vie :** 50  
+<div class="unit-card">
+  <div class="unit-image-wrapper">
+    <img src="/images/Dromadaire.png" class="unit-image" alt="Dromadaire blindé">
+  </div>
 
-Rôle :
+  <div class="unit-content">
+    <h2>Dromadaire blindé</h2>
+    <p class="unit-role">Unité intermédiaire – pilier de l’armée</p>
 
-- unité polyvalente, bon compromis entre vitesse, dégâts et résistance ;
-- parfaite pour :
-  - maintenir une pression constante,
-  - défendre contre des vagues de Momies,
-  - accompagner un Sphinx.
+    <p>
+      Le Dromadaire blindé est une unité polyvalente. Il offre un bon équilibre entre vitesse,
+      résistance et dégâts, ce qui en fait la colonne vertébrale de la plupart des compositions.
+    </p>
+
+    <dl class="unit-stats">
+      <div>
+        <dt>Coût</dt><dd>25𓍯</dd>
+      </div>
+      <div>
+        <dt>Vitesse</dt><dd>6</dd>
+      </div>
+      <div>
+        <dt>Dégâts</dt><dd>20</dd>
+      </div>
+      <div>
+        <dt>Points de vie</dt><dd>50</dd>
+      </div>
+    </dl>
+
+    <p class="unit-summary">
+      <strong>À utiliser pour :</strong> maintenir une pression constante et sécuriser la ligne de front.
+    </p>
+  </div>
+</div>
 
 ---
 
 ## Sphinx
 
-- **Type :** Unité lourde  
-- **Coût :** 75𓍯  
-- **Vitesse :** 4  
-- **Dégâts :** 40  
-- **Points de vie :** 120  
+<div class="unit-card">
+  <div class="unit-image-wrapper">
+    <img src="/images/Sphinx.png" class="unit-image" alt="Sphinx">
+  </div>
 
-Rôle :
+  <div class="unit-content">
+    <h2>Sphinx</h2>
+    <p class="unit-role">Unité lourde – lente mais dévastatrice</p>
 
-- unité la plus puissante du jeu ;
-- lente mais extrêmement résistante ;
-- idéale pour :
-  - briser les défenses ennemies,
-  - terminer une partie,
-  - tank des dégâts pendant que d’autres unités attaquent.
+    <p>
+      Le Sphinx est votre unité la plus puissante. Sa progression est lente, mais il encaisse énormément
+      de dégâts et menace directement la pyramide ennemie dès qu’il l’atteint.
+    </p>
 
----
+    <dl class="unit-stats">
+      <div>
+        <dt>Coût</dt><dd>75𓍯</dd>
+      </div>
+      <div>
+        <dt>Vitesse</dt><dd>4</dd>
+      </div>
+      <div>
+        <dt>Dégâts</dt><dd>40</dd>
+      </div>
+      <div>
+        <dt>Points de vie</dt><dd>120</dd>
+      </div>
+    </dl>
 
-## Comparatif rapide
+    <p class="unit-summary">
+      <strong>À utiliser pour :</strong> percée décisive, destruction de la pyramide et tank principal.
+    </p>
+  </div>
+</div>
 
-| Unité              | Type      | Coût | Vitesse | Dégâts | PV  | Utilisation principale          |
-|--------------------|-----------|-----:|--------:|-------:|----:|----------------------------------|
-| Momie              | Légère    | 10   | 10      | 8      | 15  | Harcèlement, saturation         |
-| Dromadaire blindé  | Intermédiaire | 25 | 6       | 20     | 50  | Pression régulière, défense     |
-| Sphinx             | Lourde    | 75   | 4       | 40     |120  | Percée décisive, tank principal |
+--- 
 
-Pour savoir comment le terrain affecte ces unités, voir  
+Pour voir comment le terrain influence ces unités, consultez  
 [Terrains & Obstacles](terrains.md).

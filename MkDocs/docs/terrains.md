@@ -7,7 +7,9 @@ Ils ont un impact sur la **vitesse de déplacement** de vos unités et sur la fa
 
 ## Types de terrain
 
-### Désert (terrain standard)
+<div class="ground">
+  <h1>Désert</h1>
+</div>
 
 - Terrain “neutre”.
 - Permet aux unités d’atteindre leur **vitesse maximale**.
