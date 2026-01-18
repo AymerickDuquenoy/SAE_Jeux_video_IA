@@ -31,8 +31,7 @@ Desktop.ini
 .vscode/
 
 # Local game saves (do not commit)
-Game/assets/config/save.json
-
+assets/config/save.json
 
 # Generated maps
-Game/assets/map/_generated.tmx
+assets/map/_generated*.tmx
