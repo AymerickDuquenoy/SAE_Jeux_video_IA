@@ -1,0 +1,32 @@
+{
+  "sae": {
+    "k_cost_per_power": 10,
+    "v_plus_b": 100,
+    "reward_divisor": 2,
+    "dusty_divisor": 2
+  },
+  "units": {
+    "S": { "name": "Momie", "power": 8, "speed": 70 },
+    "M": { "name": "Dromadaire", "power": 12, "speed": 55 },
+    "L": { "name": "Sphinx", "power": 18, "speed": 40 }
+  },
+  "pyramid": {
+    "hp_base": 500,
+    "level_max": 5,
+    "income_base": 2.0,
+    "income_mult": 1.25,
+    "upgrade_costs": [100, 125, 150, 175, 200]
+  },
+  "economy": {
+    "starting_money": 100
+  },
+  "map": {
+    "player_pyramid": [2, 10],
+    "enemy_pyramid": [27, 10],
+    "player_spawn": [3, 10],
+    "enemy_spawn": [26, 10],
+
+    "dusty_rects": 7,
+    "forbidden_rects": 3
+  }
+}
