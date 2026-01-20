@@ -26,6 +26,8 @@ from Game.Ecs.Components.path import Path as PathComponent
 from Game.Ecs.Components.grid_position import GridPosition
 from Game.Ecs.Components.projectile import Projectile
 from Game.Ecs.Components.incomeRate import IncomeRate
+from Game.Ecs.Components.pathProgress import PathProgress
+
 
 from Game.Services.terrain_randomizer import apply_random_terrain
 
@@ -349,6 +351,16 @@ class LaneRouteSystem:
                     except Exception:
                         pass
 
+                    try:
+                        prog = esper.component_for_entity(ent, PathProgress)
+                        prog.index = 0
+                    except Exception:
+                        try:
+                            esper.add_component(ent, PathProgress(index=0))
+                        except Exception:
+                            pass
+
+
             goal = wp if stage == 0 else final
 
             last_goal = self.goal_by_ent.get(ent, None)
@@ -371,6 +383,17 @@ class LaneRouteSystem:
                     for (x, y) in pts:
                         gp.append(GridPosition(int(x), int(y)))
                     path.noeuds = gp
+
+                    # ✅ reset index à chaque rebuild
+                    try:
+                        prog = esper.component_for_entity(ent, PathProgress)
+                        prog.index = 0
+                    except Exception:
+                        try:
+                            esper.add_component(ent, PathProgress(index=0))
+                        except Exception:
+                            pass
+
 
 
 class GameApp:
@@ -908,6 +931,17 @@ class GameApp:
             except Exception:
                 pass
 
+
+            try:
+                prog = esper.component_for_entity(ent, PathProgress)
+                prog.index = 0
+            except Exception:
+                try:
+                    esper.add_component(ent, PathProgress(index=0))
+                except Exception:
+                    pass
+
+
             if self.lane_route_system:
                 try:
                     self.lane_route_system.set_lane_for_entity(int(ent), int(lane_idx))
@@ -993,9 +1027,12 @@ class GameApp:
     def _compute_lane_route_path(self, lane_idx: int) -> list[tuple[int, int]]:
         """
         Lane réelle = chemin complet :
-        Spawn sur la lane -> waypoint près de l’ennemi -> case d'attaque lane (haut/milieu/bas)
+        ANCRE (haut/droite/bas de la pyramide) -> entrée lane -> sortie lane -> case d'attaque lane (haut/milieu/bas)
 
-        Objectif : l'affichage colle au déplacement réel.
+        Objectif : la ligne part "collée" à la pyramide :
+        - lane 1 : haut de la pyramide
+        - lane 2 : droite de la pyramide
+        - lane 3 : bas de la pyramide
         """
         if not self.nav_grid:
             return []
@@ -1004,29 +1041,70 @@ class GameApp:
         lane_y = int(self.lanes_y[lane_idx])
 
         px = int(self.player_pyr_pos[0])
+        py = int(self.player_pyr_pos[1])
         ex = int(self.enemy_pyr_pos[0])
 
-        start = (px + 2, lane_y)          # ✅ spawn réel
-        mid = (ex - 1, lane_y)            # waypoint proche ennemi sur la lane
-        end = self._attack_cell_for_lane(1, lane_idx)  # haut/milieu/bas
+        h = int(getattr(self.nav_grid, "height", 0))
+        w = int(getattr(self.nav_grid, "width", 0))
 
-        s = self._find_walkable_near(int(start[0]), int(start[1]), max_r=12)
-        m = self._find_walkable_near(int(mid[0]), int(mid[1]), max_r=12)
-        g = self._find_walkable_near(int(end[0]), int(end[1]), max_r=12)
+        def clamp_xy(x: int, y: int) -> tuple[int, int]:
+            if w > 0:
+                x = self._clamp(x, 0, w - 1)
+            if h > 0:
+                y = self._clamp(y, 0, h - 1)
+            return (x, y)
 
-        if not s or not m or not g:
+        # ✅ ancre de départ "collée" à la pyramide (selon lane)
+        if lane_idx == 0:
+            start_raw = (px, py - 1)      # haut
+        elif lane_idx == 1:
+            start_raw = (px + 1, py)      # droite
+        else:
+            start_raw = (px, py + 1)      # bas
+
+        start_raw = clamp_xy(int(start_raw[0]), int(start_raw[1]))
+
+        # entrée lane = à droite de ta base, sur la lane sélectionnée
+        entry_raw = (px + 1, lane_y)
+        entry_raw = clamp_xy(int(entry_raw[0]), int(entry_raw[1]))
+
+        # milieu proche ennemi sur la lane
+        mid_raw = (ex - 1, lane_y)
+        mid_raw = clamp_xy(int(mid_raw[0]), int(mid_raw[1]))
+
+        # fin = case d'attaque lane (haut/milieu/bas)
+        end_raw = self._attack_cell_for_lane(1, lane_idx)
+        end_raw = clamp_xy(int(end_raw[0]), int(end_raw[1]))
+
+        s = self._find_walkable_near(int(start_raw[0]), int(start_raw[1]), max_r=12)
+        e = self._find_walkable_near(int(entry_raw[0]), int(entry_raw[1]), max_r=12)
+        m = self._find_walkable_near(int(mid_raw[0]), int(mid_raw[1]), max_r=12)
+        g = self._find_walkable_near(int(end_raw[0]), int(end_raw[1]), max_r=12)
+
+        if not s or not e or not m or not g:
             return []
 
-        p1 = self._astar_preview(s, m)
-        p2 = self._astar_preview(m, g)
+        p1 = self._astar_preview(s, e)
+        p2 = self._astar_preview(e, m)
+        p3 = self._astar_preview(m, g)
 
         out = []
         if p1:
             out += p1
         if p2:
             out += p2[1:] if out else p2
+        if p3:
+            out += p3[1:] if out else p3
+
+
+        if out:
+            if tuple(out[0]) != tuple(start_raw):
+                out.insert(0, start_raw)
+        else:
+            out = [start_raw]
 
         return out
+
 
 
     def _flash_lane(self):
@@ -1129,16 +1207,18 @@ class GameApp:
         self.player_pyr_pos = safe_pos(mp.get("player_pyramid", (2, 10)))
         self.enemy_pyr_pos = safe_pos(mp.get("enemy_pyramid", (27, 10)))
 
-        # 4) lanes basées sur ta pyramide
+        # 4) lanes collées à ta pyramide (lane1 haut / lane2 milieu / lane3 bas)
         h = int(getattr(self.nav_grid, "height", 0))
-        spacing = max(3, int(h * 0.22))  # sur 20 => ~4
         base_y = int(self.player_pyr_pos[1])
+
+        spacing = 1 
 
         l2 = self._clamp(base_y, 1, h - 2)
         l1 = self._clamp(base_y - spacing, 1, h - 2)
         l3 = self._clamp(base_y + spacing, 1, h - 2)
 
         self.lanes_y = [l1, l2, l3]
+
 
         # 5) couche random SAÉ
         rng = random.Random(self.last_map_seed + 1337)
