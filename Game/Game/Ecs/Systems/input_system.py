@@ -6,7 +6,6 @@ from Game.Ecs.Components.transform import Transform
 from Game.Ecs.Components.grid_position import GridPosition
 from Game.Ecs.Components.velocity import Velocity
 from Game.Ecs.Components.speed import Speed
-from Game.Ecs.Components.team import Team
 from Game.Ecs.Components.wallet import Wallet
 from Game.Ecs.Components.path import Path
 from Game.Ecs.Components.pathProgress import PathProgress
@@ -16,7 +15,7 @@ class InputSystem(esper.Processor):
     """
     Input simple (sans IA) :
     - Z / X / C : choisir la lane (1 / 2 / 3)
-    - 1 / 2 / 3 : spawn Momie / Dromadaire / Sphinx dans la lane sélectionnée
+    - 1 / 2 / 3 : spawn S / M / L dans la lane sélectionnée
     """
 
     def __init__(self, factory, balance, player_pyramid_eid: int, enemy_pyramid_eid: int, nav_grid, *, lanes_y=None):
@@ -27,11 +26,11 @@ class InputSystem(esper.Processor):
         self.enemy_pyramid_eid = int(enemy_pyramid_eid)
         self.nav_grid = nav_grid
 
-        # ✅ lanes calculées dans game_app.py (affichage == vrai chemin)
+        # lanes calculées dans game_app.py (utile pour cohérence affichage)
         self.lanes_y = list(lanes_y) if lanes_y else None
 
         self.last_message = ""
-        self.selected_lane = 1  # 0..2 (par défaut lane 2)
+        self.selected_lane = 1  # lane 2 par défaut (0..2)
 
         self._prev = {}
 
@@ -45,7 +44,6 @@ class InputSystem(esper.Processor):
         h = int(getattr(self.nav_grid, "height", 0))
         if h <= 0:
             return [0, 0, 0]
-
         c1 = max(0, min(h - 1, h // 6))
         c2 = max(0, min(h - 1, h // 2))
         c3 = max(0, min(h - 1, (5 * h) // 6))
@@ -57,6 +55,7 @@ class InputSystem(esper.Processor):
                 for dx in range(-r, r + 1):
                     nx = x + dx
                     ny = y + dy
+
                     if hasattr(self.nav_grid, "is_walkable"):
                         if self.nav_grid.is_walkable(nx, ny):
                             return nx, ny
@@ -67,22 +66,16 @@ class InputSystem(esper.Processor):
         return None
 
     def _v_to_move_speed(self, v_value: float) -> float:
-        """
-        Convertit le V de la SAE (ex: 0..100) en vitesse de déplacement (cases / seconde).
-        On garde V dans UnitStats pour l'affichage/contrainte, mais Speed.base doit être "jouable".
-        """
-        vb = float(self.balance.get("sae", {}).get("v_plus_b", 100.0))  # typiquement 100
+        vb = float(self.balance.get("sae", {}).get("v_plus_b", 100.0))
         vb = vb if vb > 0 else 100.0
 
         MOVE_SPEED_MAX = 4.0  # 100 de V => 4 cases/s (ajustable)
         ratio = max(0.0, min(1.0, float(v_value) / vb))
         speed = ratio * MOVE_SPEED_MAX
 
-        # évite une vitesse trop lente
         return max(0.6, speed)
 
     def _spawn_unit_player(self, unit_key: str):
-        # sécurité: si jamais le match a été reset et qu'on appuie pile au mauvais moment
         try:
             wallet = esper.component_for_entity(self.player_pyramid_eid, Wallet)
             p_t = esper.component_for_entity(self.player_pyramid_eid, Transform)
@@ -97,17 +90,20 @@ class InputSystem(esper.Processor):
             return
 
         px = int(round(p_t.pos[0]))
+        py = int(round(p_t.pos[1]))
 
-        # ✅ lane_y : on prend celles de game_app si dispo (sinon fallback)
-        if self.lanes_y and len(self.lanes_y) >= 3:
-            lane_y = int(self.lanes_y[self.selected_lane])
+        # ✅ spawn "collé" à la pyramide selon la lane (haut / droite / bas)
+        if self.selected_lane == 0:
+            spawn_x = px
+            spawn_y = py - 1
+        elif self.selected_lane == 1:
+            spawn_x = px + 1
+            spawn_y = py
         else:
-            lane_y = int(self._lane_centers()[self.selected_lane])
+            spawn_x = px
+            spawn_y = py + 1
 
-        spawn_x = px + 2
-        spawn_y = lane_y
-
-        found = self._find_walkable_near(spawn_x, spawn_y, max_r=10)
+        found = self._find_walkable_near(int(spawn_x), int(spawn_y), max_r=12)
         if not found:
             self.last_message = "No walkable spawn found"
             return
@@ -116,22 +112,21 @@ class InputSystem(esper.Processor):
 
         wallet.solde -= float(st.cost)
 
-        # ✅ spawn via factory => respecte SAÉ strict (C=kP, V+B=const, HP=B+1)
+        # spawn via factory => respecte SAÉ strict (C=kP, V+B=const, HP=B+1)
         ent = self.factory.create_unit(unit_key, team_id=1, grid_pos=(int(gx), int(gy)))
 
-        # (assure composants déplacement)
         if not esper.has_component(ent, Velocity):
             esper.add_component(ent, Velocity(0.0, 0.0))
 
-        # on force Speed.base avec la conversion "jouable" (au cas où)
+        # Speed.base jouable
         move_speed = self._v_to_move_speed(st.speed)
         try:
             sp = esper.component_for_entity(ent, Speed)
-            sp.base = float(move_speed)  # <-- FIX IMPORTANT
+            sp.base = float(move_speed)
         except Exception:
-            esper.add_component(ent, Speed(base=float(move_speed), mult_terrain=1.0))  # <-- FIX IMPORTANT
+            esper.add_component(ent, Speed(base=float(move_speed), mult_terrain=1.0))
 
-        # ✅ Path vide : LaneRouteSystem va le remplir direct
+        # Path vide : LaneRouteSystem va le remplir
         if not esper.has_component(ent, Path):
             esper.add_component(ent, Path([]))
         if not esper.has_component(ent, PathProgress):
@@ -152,9 +147,10 @@ class InputSystem(esper.Processor):
             self.selected_lane = 2
             self.last_message = "Lane 3 selected"
 
+        # 1/2/3 -> types S/M/L (à garder cohérent avec EntityFactory)
         if self._just_pressed(keys, pygame.K_1):
-            self._spawn_unit_player("S")  # Momie
+            self._spawn_unit_player("S")
         if self._just_pressed(keys, pygame.K_2):
-            self._spawn_unit_player("M")  # Dromadaire
+            self._spawn_unit_player("M")
         if self._just_pressed(keys, pygame.K_3):
-            self._spawn_unit_player("L")  # Sphinx
+            self._spawn_unit_player("L")
