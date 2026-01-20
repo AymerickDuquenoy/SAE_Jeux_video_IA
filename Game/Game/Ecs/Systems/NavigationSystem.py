@@ -13,22 +13,15 @@ from Game.Ecs.Components.terrain_effect import TerrainEffect
 
 class NavigationSystem(esper.Processor):
     """
-    Suit un Path calculé par A* et déplace l'entité vers le goal.
-
-    - Transform.pos est en "coord grille" (float)
-    - Speed.base est une vitesse en cases / seconde
-    - Anti-overshoot : si on dépasse le prochain noeud, on snap dessus.
+    Déplacement "propre jeu flash" :
+    - suit un Path (liste de GridPosition)
+    - mouvement constant (pas d'inertie) => pas de glisse / pas de diagonales à cause de l'accel
+    - anti-overshoot => snap sur le nœud
+    - NE SUPPRIME PAS Path / PathProgress (LaneRouteSystem doit pouvoir replanifier)
     """
 
-    def __init__(
-        self,
-        *,
-        max_accel: float = 10.0,
-        arrive_radius: float = 0.15,
-        min_speed: float = 0.0
-    ):
+    def __init__(self, *, arrive_radius: float = 0.12, min_speed: float = 0.0):
         super().__init__()
-        self.max_accel = float(max_accel)
         self.arrive_radius = float(arrive_radius)
         self.min_speed = float(min_speed)
 
@@ -41,11 +34,12 @@ class NavigationSystem(esper.Processor):
             velocity = self._ensure_velocity(ent)
             speed = self._ensure_speed(ent)
 
-            nodes = path.noeuds
+            nodes = getattr(path, "noeuds", None)
             if not nodes or prog.index >= len(nodes) - 1:
                 self._finish_path(ent, velocity)
                 continue
 
+            # prochain nœud à atteindre
             target_node = nodes[prog.index + 1]
             tx, ty = transform.pos
             gx, gy = float(target_node.x), float(target_node.y)
@@ -54,53 +48,42 @@ class NavigationSystem(esper.Processor):
             dy = gy - ty
             dist = math.hypot(dx, dy)
 
+            # arrivé (snap)
             if dist <= self.arrive_radius:
                 transform.pos = (gx, gy)
-                gpos.x, gpos.y = target_node.x, target_node.y
+                gpos.x, gpos.y = int(target_node.x), int(target_node.y)
                 prog.index += 1
+
+                # fini
                 if prog.index >= len(nodes) - 1:
                     self._finish_path(ent, velocity)
                 continue
 
+            # direction vers le nœud
             dirx = dx / dist
             diry = dy / dist
 
-            eff_speed = max(self.min_speed, speed.base * speed.mult_terrain)
+            # vitesse effective (terrain)
+            eff_speed = max(self.min_speed, float(speed.base) * float(speed.mult_terrain))
+
+            # si jamais tu utilises encore TerrainEffect ailleurs
             if esper.has_component(ent, TerrainEffect):
                 terr = esper.component_for_entity(ent, TerrainEffect)
                 eff_speed = terr.apply(eff_speed)
 
-            braking_dist = (eff_speed ** 2) / (2 * self.max_accel) if self.max_accel > 0 else 0.0
-            desired_speed = eff_speed
-            if braking_dist > 0 and dist < braking_dist:
-                desired_speed = eff_speed * (dist / braking_dist)
+            # déplacement constant => pas de glisse aux virages
+            velocity.vx = dirx * eff_speed
+            velocity.vy = diry * eff_speed
 
-            desired_vx = dirx * desired_speed
-            desired_vy = diry * desired_speed
-
-            dvx = desired_vx - velocity.vx
-            dvy = desired_vy - velocity.vy
-            dv_len = math.hypot(dvx, dvy)
-
-            max_dv = self.max_accel * dt
-            if dv_len > max_dv and dv_len > 1e-8:
-                scale = max_dv / dv_len
-                dvx *= scale
-                dvy *= scale
-
-            velocity.vx += dvx
-            velocity.vy += dvy
-
-            # ---- anti-overshoot ----
-            step = math.hypot(velocity.vx, velocity.vy) * dt
+            step = eff_speed * dt
             if step >= dist:
+                # anti-overshoot
                 transform.pos = (gx, gy)
-                gpos.x, gpos.y = target_node.x, target_node.y
+                gpos.x, gpos.y = int(target_node.x), int(target_node.y)
                 prog.index += 1
                 if prog.index >= len(nodes) - 1:
                     self._finish_path(ent, velocity)
                 continue
-            # ------------------------
 
             transform.pos = (tx + velocity.vx * dt, ty + velocity.vy * dt)
 
@@ -128,7 +111,19 @@ class NavigationSystem(esper.Processor):
     def _finish_path(self, ent: int, velocity: Velocity):
         velocity.vx = 0.0
         velocity.vy = 0.0
-        if esper.has_component(ent, Path):
-            esper.remove_component(ent, Path)
-        if esper.has_component(ent, PathProgress):
-            esper.remove_component(ent, PathProgress)
+
+        # ✅ IMPORTANT : on ne supprime pas Path / PathProgress
+        # LaneRouteSystem refait des chemins en vidant path.noeuds
+        try:
+            if esper.has_component(ent, Path):
+                p = esper.component_for_entity(ent, Path)
+                p.noeuds = []
+        except Exception:
+            pass
+
+        try:
+            if esper.has_component(ent, PathProgress):
+                prog = esper.component_for_entity(ent, PathProgress)
+                prog.index = 0
+        except Exception:
+            pass

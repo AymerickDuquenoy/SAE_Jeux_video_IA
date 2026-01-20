@@ -1227,7 +1227,8 @@ class GameApp:
 
         self.astar_system = AStarPathfindingSystem(self.nav_grid)
         self.terrain_system = TerrainEffectSystem(self.nav_grid)
-        self.nav_system = NavigationSystem(max_accel=8.0, arrive_radius=0.05)
+        self.nav_system = NavigationSystem(arrive_radius=0.05)
+
 
         # objectifs fallback (lane2)
         goal_team1 = self._attack_cell_for_lane(1, 1)  # milieu
