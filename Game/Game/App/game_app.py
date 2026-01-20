@@ -993,7 +993,9 @@ class GameApp:
     def _compute_lane_route_path(self, lane_idx: int) -> list[tuple[int, int]]:
         """
         Lane réelle = chemin complet :
-          Pyramide -> entrée lane -> sortie lane -> case d'attaque lane (haut/milieu/bas)
+        Spawn sur la lane -> waypoint près de l’ennemi -> case d'attaque lane (haut/milieu/bas)
+
+        Objectif : l'affichage colle au déplacement réel.
         """
         if not self.nav_grid:
             return []
@@ -1001,34 +1003,31 @@ class GameApp:
         lane_idx = max(0, min(2, int(lane_idx)))
         lane_y = int(self.lanes_y[lane_idx])
 
-        start = self.player_pyr_pos
-        entry = (int(self.player_pyr_pos[0]) + 1, lane_y)
-        mid = (int(self.enemy_pyr_pos[0]) - 1, lane_y)
+        px = int(self.player_pyr_pos[0])
+        ex = int(self.enemy_pyr_pos[0])
 
-        # ✅ fin = case d'attaque lane (haut/milieu/bas)
-        end = self._attack_cell_for_lane(1, lane_idx)
+        start = (px + 2, lane_y)          # ✅ spawn réel
+        mid = (ex - 1, lane_y)            # waypoint proche ennemi sur la lane
+        end = self._attack_cell_for_lane(1, lane_idx)  # haut/milieu/bas
 
         s = self._find_walkable_near(int(start[0]), int(start[1]), max_r=12)
-        e = self._find_walkable_near(int(entry[0]), int(entry[1]), max_r=12)
         m = self._find_walkable_near(int(mid[0]), int(mid[1]), max_r=12)
         g = self._find_walkable_near(int(end[0]), int(end[1]), max_r=12)
 
-        if not s or not e or not m or not g:
+        if not s or not m or not g:
             return []
 
-        p1 = self._astar_preview(s, e)
-        p2 = self._astar_preview(e, m)
-        p3 = self._astar_preview(m, g)
+        p1 = self._astar_preview(s, m)
+        p2 = self._astar_preview(m, g)
 
         out = []
         if p1:
             out += p1
         if p2:
             out += p2[1:] if out else p2
-        if p3:
-            out += p3[1:] if out else p3
 
         return out
+
 
     def _flash_lane(self):
         self.lane_flash_timer = float(self.lane_flash_duration)
@@ -1213,7 +1212,9 @@ class GameApp:
             self.player_pyramid_eid,
             self.enemy_pyramid_eid,
             self.nav_grid,
+            lanes_y=self.lanes_y,
         )
+
 
         # ✅ force lane2 au démarrage même si InputSystem met lane1
         self._set_selected_lane_index(1)

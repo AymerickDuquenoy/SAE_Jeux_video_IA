@@ -7,10 +7,9 @@ from Game.Ecs.Components.grid_position import GridPosition
 from Game.Ecs.Components.velocity import Velocity
 from Game.Ecs.Components.speed import Speed
 from Game.Ecs.Components.team import Team
-from Game.Ecs.Components.health import Health
-from Game.Ecs.Components.unitStats import UnitStats
 from Game.Ecs.Components.wallet import Wallet
-from Game.Ecs.Components.pathRequest import PathRequest
+from Game.Ecs.Components.path import Path
+from Game.Ecs.Components.pathProgress import PathProgress
 
 
 class InputSystem(esper.Processor):
@@ -20,13 +19,16 @@ class InputSystem(esper.Processor):
     - 1 / 2 / 3 : spawn Momie / Dromadaire / Sphinx dans la lane sélectionnée
     """
 
-    def __init__(self, factory, balance, player_pyramid_eid: int, enemy_pyramid_eid: int, nav_grid):
+    def __init__(self, factory, balance, player_pyramid_eid: int, enemy_pyramid_eid: int, nav_grid, *, lanes_y=None):
         super().__init__()
         self.factory = factory
         self.balance = balance
         self.player_pyramid_eid = int(player_pyramid_eid)
         self.enemy_pyramid_eid = int(enemy_pyramid_eid)
         self.nav_grid = nav_grid
+
+        # ✅ lanes calculées dans game_app.py (affichage == vrai chemin)
+        self.lanes_y = list(lanes_y) if lanes_y else None
 
         self.last_message = ""
         self.selected_lane = 1  # 0..2 (par défaut lane 2)
@@ -84,7 +86,6 @@ class InputSystem(esper.Processor):
         try:
             wallet = esper.component_for_entity(self.player_pyramid_eid, Wallet)
             p_t = esper.component_for_entity(self.player_pyramid_eid, Transform)
-            e_t = esper.component_for_entity(self.enemy_pyramid_eid, Transform)
         except KeyError:
             self.last_message = "Match not ready"
             return
@@ -96,10 +97,12 @@ class InputSystem(esper.Processor):
             return
 
         px = int(round(p_t.pos[0]))
-        ex = int(round(e_t.pos[0]))
-        ey = int(round(e_t.pos[1]))
 
-        lane_y = self._lane_centers()[self.selected_lane]
+        # ✅ lane_y : on prend celles de game_app si dispo (sinon fallback)
+        if self.lanes_y and len(self.lanes_y) >= 3:
+            lane_y = int(self.lanes_y[self.selected_lane])
+        else:
+            lane_y = int(self._lane_centers()[self.selected_lane])
 
         spawn_x = px + 2
         spawn_y = lane_y
@@ -111,23 +114,28 @@ class InputSystem(esper.Processor):
 
         gx, gy = found
 
-        hp_by_type = {"S": 30, "M": 45, "L": 60}
-        hp = int(hp_by_type.get(unit_key, 35))
-
         wallet.solde -= float(st.cost)
 
-        move_speed = self._v_to_move_speed(st.speed)
+        # ✅ spawn via factory => respecte SAÉ strict (C=kP, V+B=const, HP=B+1)
+        ent = self.factory.create_unit(unit_key, team_id=1, grid_pos=(int(gx), int(gy)))
 
-        esper.create_entity(
-            Transform(pos=(float(gx), float(gy))),
-            GridPosition(gx, gy),
-            Velocity(0.0, 0.0),
-            Speed(base=float(move_speed), mult_terrain=1.0),  # <-- FIX IMPORTANT
-            Team(1),
-            Health(hp_max=hp, hp=hp),
-            UnitStats(speed=float(st.speed), power=float(st.power), armor=float(st.armor), cost=float(st.cost)),
-            PathRequest(goal=GridPosition(ex, ey))
-        )
+        # (assure composants déplacement)
+        if not esper.has_component(ent, Velocity):
+            esper.add_component(ent, Velocity(0.0, 0.0))
+
+        # on force Speed.base avec la conversion "jouable" (au cas où)
+        move_speed = self._v_to_move_speed(st.speed)
+        try:
+            sp = esper.component_for_entity(ent, Speed)
+            sp.base = float(move_speed)  # <-- FIX IMPORTANT
+        except Exception:
+            esper.add_component(ent, Speed(base=float(move_speed), mult_terrain=1.0))  # <-- FIX IMPORTANT
+
+        # ✅ Path vide : LaneRouteSystem va le remplir direct
+        if not esper.has_component(ent, Path):
+            esper.add_component(ent, Path([]))
+        if not esper.has_component(ent, PathProgress):
+            esper.add_component(ent, PathProgress(index=0))
 
         self.last_message = f"Spawn {unit_key} in lane {self.selected_lane + 1}"
 
