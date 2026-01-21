@@ -3,24 +3,37 @@ import random
 import esper
 
 from Game.Ecs.Components.transform import Transform
-from Game.Ecs.Components.grid_position import GridPosition
-from Game.Ecs.Components.velocity import Velocity
-from Game.Ecs.Components.speed import Speed
-from Game.Ecs.Components.team import Team
-from Game.Ecs.Components.health import Health
-from Game.Ecs.Components.unitStats import UnitStats
 from Game.Ecs.Components.wallet import Wallet
-from Game.Ecs.Components.pathRequest import PathRequest
-from Game.Ecs.Components.unitType import UnitType
+from Game.Ecs.Components.team import Team
+from Game.Ecs.Components.path import Path
+from Game.Ecs.Components.pathProgress import PathProgress
 
 
 class EnemySpawnerSystem(esper.Processor):
     """
-    Spawn automatique côté ennemi.
-    La difficulté (intervalle / burst / poids) est pilotée par DifficultySystem.
+    Spawn automatique côté ennemi (SANS IA décisionnelle).
+
+    Objectif SAÉ :
+    - Pas de stratégie/adaptation : on spawn sur timer + difficulté qui monte avec le temps.
+    - Les unités sont créées via EntityFactory.create_unit() pour respecter strictement :
+        C = kP
+        V + B = constante
+        HP = B + 1  (=> destruction n*P > B)
+
+    Le mouvement est ensuite géré par LaneRouteSystem + NavigationSystem.
     """
 
-    def __init__(self, factory, balance, player_pyramid_eid: int, enemy_pyramid_eid: int, nav_grid):
+    def __init__(
+        self,
+        factory,
+        balance: dict,
+        player_pyramid_eid: int,
+        enemy_pyramid_eid: int,
+        nav_grid,
+        *,
+        lanes_y: list[int] | None = None,
+        match_seed: int = 0,
+    ):
         super().__init__()
         self.factory = factory
         self.balance = balance
@@ -28,144 +41,179 @@ class EnemySpawnerSystem(esper.Processor):
         self.enemy_pyramid_eid = int(enemy_pyramid_eid)
         self.nav_grid = nav_grid
 
-        self.last_message = ""
+        self.lanes_y = list(lanes_y) if lanes_y else None
+        self.rng = random.Random(int(match_seed) + 424242)
 
-        self.timer = 0.0
-        self.spawn_interval = float(balance.get("difficulty", {}).get("spawn_interval_base", 5.0))
-        self.start_delay = float(balance.get("difficulty", {}).get("start_delay", 2.0))
+        # timings
+        self.start_delay = 3.0
+        self.spawn_interval = 5.0
 
-        self.wave_index = 0
-
-        # burst (spawn plusieurs unités d'un coup)
+        # burst
         self.burst_count = 1
-        self.burst_spacing = float(balance.get("difficulty", {}).get("burst_spacing", 0.25))
+        self.burst_spacing = 0.25
+
+        # pondérations
+        self.weights = {"S": 0.60, "M": 0.30, "L": 0.10}
+
+        # ✅ économie ennemie (SAÉ)
+        econ = self.balance.get("economy", {})
+        pyr = self.balance.get("pyramid", {})
+
+        self.enemy_start_money = float(econ.get("starting_money", 100.0)) * 0.60
+
+        self.enemy_income_per_sec = float(econ.get("enemy_income_per_sec", pyr.get("income_base", 2.0)))
+        self.enemy_income_per_sec *= float(econ.get("enemy_income_multiplier", 0.85))
+
+        # état
+        self.timer = 0.0
+        self.wave_index = 0
         self._burst_left = 0
         self._burst_timer = 0.0
 
-        # poids (modifiable par la difficulté)
-        default_weights = balance.get("enemy_ai", {}).get("spawn_weights", {"S": 0.55, "M": 0.30, "L": 0.15})
-        self.weights = dict(default_weights)
+        self.last_message = ""
 
-    def set_params(self, *, spawn_interval: float | None = None, burst_count: int | None = None, weights: dict | None = None):
-        if spawn_interval is not None:
-            self.spawn_interval = max(0.25, float(spawn_interval))
-        if burst_count is not None:
-            self.burst_count = max(1, int(burst_count))
-        if weights is not None and isinstance(weights, dict) and len(weights) > 0:
-            self.weights = dict(weights)
-
-    def hud_line(self) -> str:
-        nxt = max(0.0, (self.spawn_interval - self.timer)) if self._burst_left <= 0 else max(0.0, self._burst_timer)
-        return f"Enemy waves: {self.wave_index} | next: {nxt:.1f}s | burst: {self.burst_count}x"
-
+    # ---------------------------
+    # helpers
+    # ---------------------------
     def _lane_centers(self) -> list[int]:
+        if self.lanes_y and len(self.lanes_y) >= 3:
+            return [int(self.lanes_y[0]), int(self.lanes_y[1]), int(self.lanes_y[2])]
+
         h = int(getattr(self.nav_grid, "height", 0))
         if h <= 0:
             return [0, 0, 0]
 
-        c1 = max(0, min(h - 1, h // 6))
-        c2 = max(0, min(h - 1, h // 2))
-        c3 = max(0, min(h - 1, (5 * h) // 6))
-        return [c1, c2, c3]
+        return [
+            max(0, min(h - 1, h // 6)),
+            max(0, min(h - 1, h // 2)),
+            max(0, min(h - 1, (5 * h) // 6)),
+        ]
 
-    def _find_walkable_near(self, x: int, y: int, max_r: int = 8):
+    def _find_walkable_near(self, x: int, y: int, max_r: int = 10):
+        w = int(getattr(self.nav_grid, "width", 0))
+        h = int(getattr(self.nav_grid, "height", 0))
+
         for r in range(0, max_r + 1):
             for dy in range(-r, r + 1):
                 for dx in range(-r, r + 1):
-                    nx = x + dx
-                    ny = y + dy
-                    if self.nav_grid.is_walkable(nx, ny):
-                        return nx, ny
+                    nx = int(x + dx)
+                    ny = int(y + dy)
+
+                    if w > 0 and h > 0:
+                        if nx < 0 or nx >= w or ny < 0 or ny >= h:
+                            continue
+
+                    if hasattr(self.nav_grid, "is_walkable"):
+                        try:
+                            if self.nav_grid.is_walkable(nx, ny):
+                                return nx, ny
+                        except Exception:
+                            continue
+                    else:
+                        if 0 <= nx < self.nav_grid.width and 0 <= ny < self.nav_grid.height:
+                            if self.nav_grid.walkable[ny][nx]:
+                                return nx, ny
         return None
 
-    def _v_to_move_speed(self, v_value: float) -> float:
-        vb = float(self.balance.get("sae", {}).get("v_plus_b", 100.0))
-        vb = vb if vb > 0 else 100.0
+    def _ensure_enemy_wallet(self):
+        if not esper.has_component(self.enemy_pyramid_eid, Wallet):
+            esper.add_component(self.enemy_pyramid_eid, Wallet(solde=max(0.0, float(self.enemy_start_money))))
 
-        MOVE_SPEED_MAX = 4.0
-        ratio = max(0.0, min(1.0, float(v_value) / vb))
-        speed = ratio * MOVE_SPEED_MAX
-        return max(0.6, speed)
+    def _enemy_income_tick(self, dt: float):
+        self._ensure_enemy_wallet()
+        try:
+            w = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
+            w.solde += float(self.enemy_income_per_sec) * float(dt)
+        except Exception:
+            pass
 
     def _pick_unit_key(self) -> str:
-        keys = list(self.weights.keys())
-        w = [max(0.0, float(self.weights[k])) for k in keys]
-        if sum(w) <= 0:
+        keys = ["S", "M", "L"]
+        w = [float(self.weights.get(k, 0.0)) for k in keys]
+        if sum(w) <= 0.0:
             return "S"
-        return random.choices(keys, weights=w, k=1)[0]
+        return self.rng.choices(keys, weights=w, k=1)[0]
 
-    def _ensure_enemy_wallet(self):
+    def _pick_lane_idx(self) -> int:
+        if self.wave_index % 4 == 0:
+            return 1
+        return int(self.rng.choice([0, 1, 2]))
+
+    def hud_line(self) -> str:
+        nxt = max(0.0, (self.spawn_interval - self.timer)) if self._burst_left <= 0 else max(0.0, self.burst_spacing - self._burst_timer)
+        return f"Enemy waves: {self.wave_index} | next: {nxt:.1f}s | money: {self._enemy_money():.1f}"
+
+    def _enemy_money(self) -> float:
         try:
-            esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
+            w = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
+            return float(w.solde)
         except Exception:
-            esper.add_component(self.enemy_pyramid_eid, Wallet(solde=0.0))
+            return 0.0
 
+    # ---------------------------
+    # spawn
+    # ---------------------------
     def _spawn_one(self):
         self._ensure_enemy_wallet()
-
         enemy_wallet = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
-
-        mp = self.balance.get("map", {})
-        spawn = mp.get("enemy_spawn", None)
-        if not spawn:
-            # fallback: proche de la pyramide ennemie
-            et = esper.component_for_entity(self.enemy_pyramid_eid, Transform)
-            spawn = [int(round(et.pos[0])), int(round(et.pos[1]))]
-
-        sx = int(spawn[0])
-        lane_y = random.choice(self._lane_centers())
-        sy = int(lane_y)
-
-        found = self._find_walkable_near(sx - 2, sy, max_r=10)
-        if not found:
-            self.last_message = "Enemy: no spawn found"
-            return
-        gx, gy = found
 
         unit_key = self._pick_unit_key()
         st = self.factory.compute_unit_stats(unit_key)
 
-        # économie : si pas assez => on attend
-        if enemy_wallet.solde < st.cost:
+        if enemy_wallet.solde < float(st.cost):
             self.last_message = "Enemy: waiting money"
             return
 
         enemy_wallet.solde -= float(st.cost)
 
-        # goal = pyramide joueur
-        pt = esper.component_for_entity(self.player_pyramid_eid, Transform)
-        goal_x = int(round(pt.pos[0]))
-        goal_y = int(round(pt.pos[1]))
+        # position pyramide ennemie
+        try:
+            et = esper.component_for_entity(self.enemy_pyramid_eid, Transform)
+            ex = int(round(et.pos[0]))
+            ey = int(round(et.pos[1]))
+        except Exception:
+            ex, ey = (0, 0)
 
-        hp_by_type = {"S": 30, "M": 45, "L": 60}
-        hp = int(hp_by_type.get(unit_key, 35))
+        lane_idx = self._pick_lane_idx()
+        lane_y = int(self._lane_centers()[lane_idx])
 
-        move_speed = self._v_to_move_speed(st.speed)
+        # ✅ spawn "miroir" du joueur : 1 case à gauche de la pyramide ennemie sur la lane
+        sx = ex - 1
+        sy = lane_y
 
-        esper.create_entity(
-            Transform(pos=(float(gx), float(gy))),
-            GridPosition(gx, gy),
-            Velocity(0.0, 0.0),
-            Speed(base=float(move_speed), mult_terrain=1.0),
-            Team(2),
-            Health(hp_max=hp, hp=hp),
-            UnitStats(speed=float(st.speed), power=float(st.power), armor=float(st.armor), cost=float(st.cost)),
-            UnitType(key=str(unit_key)),
-            PathRequest(goal=GridPosition(goal_x, goal_y))
-        )
+        found = self._find_walkable_near(int(sx), int(sy), max_r=12)
+        if not found:
+            self.last_message = "Enemy: no spawn found"
+            return
 
-        self.last_message = f"Enemy spawn {unit_key}"
+        gx, gy = found
+
+        ent = self.factory.create_unit(unit_key, team_id=2, grid_pos=(int(gx), int(gy)))
+
+        if not esper.has_component(ent, Path):
+            esper.add_component(ent, Path([]))
+        if not esper.has_component(ent, PathProgress):
+            esper.add_component(ent, PathProgress(index=0))
+
+        try:
+            team = esper.component_for_entity(ent, Team)
+            team.id = 2
+        except Exception:
+            pass
+
+        self.last_message = f"Enemy spawn {unit_key} (lane {lane_idx + 1})"
 
     def process(self, dt: float):
         if dt <= 0:
             return
 
-        # delay au début
+        # ✅ prod/sec ennemi en continu
+        self._enemy_income_tick(dt)
+
         if self.start_delay > 0:
             self.start_delay = max(0.0, self.start_delay - dt)
             return
 
-        # si burst en cours
         if self._burst_left > 0:
             self._burst_timer += dt
             if self._burst_timer >= self.burst_spacing:
@@ -174,13 +222,11 @@ class EnemySpawnerSystem(esper.Processor):
                 self._burst_left -= 1
             return
 
-        # tick normal
         self.timer += dt
         if self.timer >= self.spawn_interval:
             self.timer = 0.0
             self.wave_index += 1
 
-            # démarre un burst (spawn_one + le reste)
             self._spawn_one()
             self._burst_left = max(0, self.burst_count - 1)
             self._burst_timer = 0.0
