@@ -30,7 +30,8 @@ class TargetingSystem(esper.Processor):
         self.pyramid_ids = set(int(x) for x in pyramid_ids)
         self.attack_range = float(attack_range)
         # Tolérance Y pour être sur la même "lane"
-        self.lane_tolerance = 1.2
+        # IMPORTANT: doit être < spacing des lanes (spacing=1)
+        self.lane_tolerance = 0.5
 
     def _is_same_lane(self, y1: float, y2: float) -> bool:
         """Vérifie si deux positions Y sont sur la même lane."""
