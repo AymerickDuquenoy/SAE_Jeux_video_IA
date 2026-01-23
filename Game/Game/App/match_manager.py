@@ -186,14 +186,16 @@ class MatchManager:
         self.player_pyr_pos = self._find_walkable_near(*mp.get("player_pyramid", [2, 10]))
         self.enemy_pyr_pos = self._find_walkable_near(*mp.get("enemy_pyramid", [27, 10]))
         
-        # Calculate lanes (relative to player pyramid)
+        # Calculate lanes with better spacing
         h = self.nav_grid.height
         base_y = int(self.player_pyr_pos[1])
-        spacing = 1
         
-        l2 = self._clamp(base_y, 1, h - 2)
-        l1 = self._clamp(base_y - spacing, 1, h - 2)
-        l3 = self._clamp(base_y + spacing, 1, h - 2)
+        # ✅ Espacement de 3 cases pour des lanes bien distinctes
+        spacing = 3
+        
+        l1 = self._clamp(base_y - spacing, 2, h - 3)  # Haut
+        l2 = self._clamp(base_y, 2, h - 3)            # Milieu (même Y que pyramide)
+        l3 = self._clamp(base_y + spacing, 2, h - 3)  # Bas
         
         self.lanes_y = [l1, l2, l3]
     
@@ -236,7 +238,11 @@ class MatchManager:
         )
     
     def _carve_pyramid_connectors(self):
-        """Ensure pyramids are accessible from all lanes."""
+        """
+        Ensure pyramids are accessible from all lanes.
+        
+        Crée des corridors horizontaux pour chaque lane.
+        """
         if not self.nav_grid:
             return
         
@@ -248,43 +254,36 @@ class MatchManager:
         px, py = int(self.player_pyr_pos[0]), int(self.player_pyr_pos[1])
         ex, ey = int(self.enemy_pyr_pos[0]), int(self.enemy_pyr_pos[1])
         
-        # Vertical corridors near pyramids
-        col_player = self._clamp(px + 1, 1, w - 2)
-        col_enemy = self._clamp(ex - 1, 1, w - 2)
+        # Pour chaque lane, créer un corridor horizontal complet
+        for lane_idx, lane_y in enumerate(self.lanes_y):
+            ly = int(lane_y)
+            
+            # Corridor horizontal sur toute la largeur de la lane
+            for x in range(1, w - 1):
+                self._force_open_cell(x, ly)
+            
+            # S'assurer que les positions autour de la lane sont aussi accessibles
+            for dy in [-1, 0, 1]:
+                ny = self._clamp(ly + dy, 1, h - 2)
+                # Près de la pyramide joueur
+                for dx in range(0, 3):
+                    self._force_open_cell(self._clamp(px + dx, 1, w - 2), ny)
+                # Près de la pyramide ennemie
+                for dx in range(-2, 1):
+                    self._force_open_cell(self._clamp(ex + dx, 1, w - 2), ny)
         
-        ymin = max(1, min(self.lanes_y + [py, ey]))
-        ymax = min(h - 2, max(self.lanes_y + [py, ey]))
+        # Padding autour des pyramides
+        for dx in range(-1, 2):
+            for dy in range(-1, 2):
+                self._force_open_cell(self._clamp(px + dx, 1, w - 2), self._clamp(py + dy, 1, h - 2))
+                self._force_open_cell(self._clamp(ex + dx, 1, w - 2), self._clamp(ey + dy, 1, h - 2))
         
-        for y in range(ymin, ymax + 1):
-            self._force_open_cell(col_player, y)
-            self._force_open_cell(col_enemy, y)
-        
-        # Lane entry points
-        for ly in self.lanes_y:
-            self._force_open_cell(col_player, int(ly))
-            self._force_open_cell(col_enemy, int(ly))
-        
-        # Attack cells for each lane
+        # Positions d'attaque pour chaque lane
         for lane_idx in range(3):
             ax1, ay1 = self.get_attack_cell(1, lane_idx)
             ax2, ay2 = self.get_attack_cell(2, lane_idx)
             self._force_open_cell(ax1, ay1)
             self._force_open_cell(ax2, ay2)
-        
-        # Padding around pyramids
-        for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
-            self._force_open_cell(self._clamp(px + dx, 1, w - 2), self._clamp(py + dy, 1, h - 2))
-            self._force_open_cell(self._clamp(ex + dx, 1, w - 2), self._clamp(ey + dy, 1, h - 2))
-        
-        # Connectors around enemy pyramid for lane 1/3
-        for (xx, yy) in [(ex - 1, ey - 1), (ex - 1, ey + 1), (ex, ey - 1), (ex, ey + 1)]:
-            if 1 <= xx < w - 1 and 1 <= yy < h - 1:
-                self._force_open_cell(xx, yy)
-        
-        # Connectors around player pyramid
-        for (xx, yy) in [(px + 1, py - 1), (px + 1, py + 1), (px, py - 1), (px, py + 1)]:
-            if 1 <= xx < w - 1 and 1 <= yy < h - 1:
-                self._force_open_cell(xx, yy)
     
     def _calculate_lane_paths(self):
         """Pre-calculate A* paths for all three lanes."""
@@ -313,20 +312,22 @@ class MatchManager:
     def _setup_systems(self):
         """Create and register all ECS systems."""
         from Game.Ecs.Systems.input_system import InputSystem
-        from Game.Ecs.Systems.AStarPathfindingSystem import AStarPathfindingSystem
         from Game.Ecs.Systems.TerrainEffectSystem import TerrainEffectSystem
-        from Game.Ecs.Systems.NavigationSystem import NavigationSystem
-        from Game.Ecs.Systems.TargetingSystem import TargetingSystem
-        from Game.Ecs.Systems.CombatSystem import CombatSystem
+        from Game.Ecs.Systems.UnitAISystem import UnitAISystem
+        from Game.Ecs.Systems.SimpleCombatSystem import SimpleCombatSystem
         from Game.Ecs.Systems.ProjectileSystem import ProjectileSystem
         from Game.Ecs.Systems.CleanupSystem import CleanupSystem
         from Game.Ecs.Systems.EconomySystem import EconomySystem
         from Game.Ecs.Systems.UpgradeSystem import UpgradeSystem
-        from Game.Ecs.Systems.LaneRouteSystem import LaneRouteSystem
         from Game.Ecs.Systems.EnemySpawnerSystem import EnemySpawnerSystem
-        from Game.Ecs.Systems.DifficultySystem import DifficultySystem
+        from Game.Ecs.Systems.RandomEventSystem import RandomEventSystem
         
         pyramid_ids = {int(self.player_pyramid_eid), int(self.enemy_pyramid_eid)}
+        pyramid_ids_dict = {1: int(self.player_pyramid_eid), 2: int(self.enemy_pyramid_eid)}
+        
+        # Positions des pyramides
+        px, py = int(self.player_pyr_pos[0]), int(self.player_pyr_pos[1])
+        ex, ey = int(self.enemy_pyr_pos[0]), int(self.enemy_pyr_pos[1])
         
         # Input system
         input_system = InputSystem(
@@ -353,50 +354,46 @@ class MatchManager:
             base_cost=base_upgrade_cost
         )
         
-        # Pathfinding systems
-        astar_system = AStarPathfindingSystem(self.nav_grid)
+        # Terrain effect system
         terrain_system = TerrainEffectSystem(self.nav_grid)
-        nav_system = NavigationSystem(arrive_radius=0.05)
         
-        # Lane route system
-        lane_route_system = LaneRouteSystem(
+        # ✅ NOUVEAU: Unit AI System - comportements IA par type (Momie/Dromadaire/Sphinx)
+        unit_ai_system = UnitAISystem(
+            player_pyr_pos=(px, py),
+            enemy_pyr_pos=(ex, ey),
+            pyramid_ids=pyramid_ids_dict,
+            flocking_radius=3.0,
+            attack_range=2.0,
+        )
+        
+        # ✅ Combat System - tirs axiaux SAÉ
+        combat_system = SimpleCombatSystem(
+            attack_range=2.0,
+            hit_cooldown=0.5,
+            projectile_speed=12.0,
+        )
+        
+        # ✅ NOUVEAU: Random Event System - tempête, sauterelles, bonus
+        event_system = RandomEventSystem(
             self.nav_grid,
-            self.lanes_y,
-            self.player_pyr_pos,
-            self.enemy_pyr_pos,
-            pyramid_ids=pyramid_ids
+            player_pyramid_eid=self.player_pyramid_eid,
+            enemy_pyramid_eid=self.enemy_pyramid_eid,
+            min_interval=30.0,
+            max_interval=60.0,
+            event_duration=10.0,
         )
         
-        # Combat systems
-        goal_team1 = self.get_attack_cell(1, 1)  # Middle lane
-        goal_team2 = self.get_attack_cell(2, 1)
-        
-        goals_by_team = {
-            1: GridPosition(int(goal_team1[0]), int(goal_team1[1])),
-            2: GridPosition(int(goal_team2[0]), int(goal_team2[1])),
-        }
-        
-        targeting_system = TargetingSystem(
-            goals_by_team=goals_by_team,
-            pyramid_ids=pyramid_ids,
-            attack_range=1.25
-        )
-        
-        combat_system = CombatSystem(
-            attack_range=1.25,
-            hit_cooldown=0.7,
-            projectile_speed=10.0
-        )
-        
+        # Projectile system
         reward_divisor = float(self.balance.get("sae", {}).get("reward_divisor", 2.0))
         projectile_system = ProjectileSystem(
             pyramid_by_team={1: int(self.player_pyramid_eid), 2: int(self.enemy_pyramid_eid)},
             reward_divisor=reward_divisor
         )
         
+        # Cleanup system
         cleanup_system = CleanupSystem(protected_entities=pyramid_ids)
         
-        # Enemy systems
+        # Enemy spawner system
         enemy_spawner_system = EnemySpawnerSystem(
             self.factory,
             self.balance,
@@ -406,21 +403,16 @@ class MatchManager:
             lanes_y=self.lanes_y,
         )
         
-        # Note: DifficultySystem needs enemy_spawner but has compatibility issues
-        # We'll add it later if needed
-        difficulty_system = None
-        
         # Register systems with priorities
+        # Ordre : Input -> Economy -> Spawn -> Event -> Terrain -> AI (mouvement+ciblage) -> Combat -> Projectile -> Cleanup
         self.world.add_system(input_system, priority=10)
         self.world.add_system(economy_system, priority=15)
         self.world.add_system(upgrade_system, priority=18)
-        self.world.add_system(enemy_spawner_system, priority=21)
-        self.world.add_system(astar_system, priority=20)
-        self.world.add_system(lane_route_system, priority=23)
+        self.world.add_system(enemy_spawner_system, priority=20)
+        self.world.add_system(event_system, priority=22)        # Événements aléatoires
         self.world.add_system(terrain_system, priority=25)
-        self.world.add_system(nav_system, priority=30)
-        self.world.add_system(targeting_system, priority=40)
-        self.world.add_system(combat_system, priority=50)
+        self.world.add_system(unit_ai_system, priority=35)      # IA (mouvement + ciblage)
+        self.world.add_system(combat_system, priority=50)       # Combat
         self.world.add_system(projectile_system, priority=60)
         self.world.add_system(cleanup_system, priority=90)
         
@@ -429,16 +421,13 @@ class MatchManager:
             "input": input_system,
             "economy": economy_system,
             "upgrade": upgrade_system,
-            "astar": astar_system,
             "terrain": terrain_system,
-            "nav": nav_system,
-            "targeting": targeting_system,
+            "unit_ai": unit_ai_system,
             "combat": combat_system,
             "projectile": projectile_system,
             "cleanup": cleanup_system,
-            "lane_route": lane_route_system,
             "enemy_spawner": enemy_spawner_system,
-            "difficulty": difficulty_system,
+            "event": event_system,
         }
     
     # =========================================================================
@@ -449,28 +438,29 @@ class MatchManager:
         """
         Get the attack cell position for a given team and lane.
         
-        Lane 1 (top): attacks from above
-        Lane 2 (middle): attacks from side
-        Lane 3 (bottom): attacks from below
+        Cohérent avec LaneRouteSystem._get_attack_goal():
+        - Lane 0 (haut) : au-dessus de la pyramide (tir vertical)
+        - Lane 1 (milieu) : à côté de la pyramide (tir horizontal)
+        - Lane 2 (bas) : en-dessous de la pyramide (tir vertical)
         """
         w = self.nav_grid.width
         h = self.nav_grid.height
         px, py = int(self.player_pyr_pos[0]), int(self.player_pyr_pos[1])
         ex, ey = int(self.enemy_pyr_pos[0]), int(self.enemy_pyr_pos[1])
         
-        if team_id == 1:  # Player attacks enemy
-            if lane_idx == 0:
+        if team_id == 1:  # Player attacks enemy pyramid
+            if lane_idx == 0:  # Haut -> au-dessus
                 ax, ay = ex, ey - 1
-            elif lane_idx == 1:
+            elif lane_idx == 1:  # Milieu -> à gauche
                 ax, ay = ex - 1, ey
-            else:
+            else:  # Bas -> en-dessous
                 ax, ay = ex, ey + 1
-        else:  # Enemy attacks player
-            if lane_idx == 0:
+        else:  # Enemy attacks player pyramid
+            if lane_idx == 0:  # Haut -> au-dessus
                 ax, ay = px, py - 1
-            elif lane_idx == 1:
+            elif lane_idx == 1:  # Milieu -> à droite
                 ax, ay = px + 1, py
-            else:
+            else:  # Bas -> en-dessous
                 ax, ay = px, py + 1
         
         return (self._clamp(ax, 1, w - 2), self._clamp(ay, 1, h - 2))

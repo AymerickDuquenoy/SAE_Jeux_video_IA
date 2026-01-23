@@ -1,10 +1,6 @@
+# Game/Ecs/Systems/SimpleCombatSystem.py
 """
-CombatSystem - Gère les tirs des unités.
-
-RÈGLES SAÉ :
-1. Tirs UNIQUEMENT axiaux (horizontal OU vertical)
-2. Ne tire que si ALIGNÉ avec la cible (même X ou même Y)
-3. Utilise une tolérance pour l'alignement
+SimpleCombatSystem - Combat avec tirs axiaux (SAÉ).
 """
 import math
 import esper
@@ -20,28 +16,34 @@ from Game.Ecs.Components.projectile import Projectile
 from Game.Ecs.Components.lifetime import Lifetime
 
 
-def _sign(x: float) -> float:
-    return 1.0 if x >= 0 else -1.0
-
-
-class CombatSystem(esper.Processor):
+class SimpleCombatSystem(esper.Processor):
     """
-    Combat SAÉ : tirs axiaux uniquement, alignement requis.
+    Combat SAÉ : tirs axiaux uniquement.
     """
 
-    def __init__(self, *, attack_range: float = 1.8, hit_cooldown: float = 0.6, projectile_speed: float = 12.0):
+    def __init__(
+        self,
+        *,
+        attack_range: float = 2.0,
+        hit_cooldown: float = 0.5,
+        projectile_speed: float = 12.0,
+    ):
         super().__init__()
         self.attack_range = float(attack_range)
         self.hit_cooldown = float(hit_cooldown)
         self.projectile_speed = float(projectile_speed)
-        # Tolérance d'alignement (en cases)
-        self.align_tolerance = 0.5
 
     def process(self, dt: float):
         if dt <= 0:
             return
 
         for eid, (t, team, stats, target) in esper.get_components(Transform, Team, UnitStats, Target):
+            # Skip morts
+            if esper.has_component(eid, Health):
+                hp = esper.component_for_entity(eid, Health)
+                if hp.is_dead:
+                    continue
+
             # Cooldown
             if esper.has_component(eid, AttackCooldown):
                 cd = esper.component_for_entity(eid, AttackCooldown)
@@ -53,18 +55,18 @@ class CombatSystem(esper.Processor):
             if cd.timer > 0.0:
                 continue
 
+            # Vérifier cible
             tid = int(target.entity_id)
             if not esper.entity_exists(tid):
                 if esper.has_component(eid, Target):
                     esper.remove_component(eid, Target)
                 continue
 
-            # Récupérer la cible
             try:
                 tt = esper.component_for_entity(tid, Transform)
                 th = esper.component_for_entity(tid, Health)
                 tteam = esper.component_for_entity(tid, Team)
-            except Exception:
+            except:
                 if esper.has_component(eid, Target):
                     esper.remove_component(eid, Target)
                 continue
@@ -74,46 +76,39 @@ class CombatSystem(esper.Processor):
                     esper.remove_component(eid, Target)
                 continue
 
+            # Distance
             ax, ay = t.pos
             bx, by = tt.pos
-
             dx = bx - ax
             dy = by - ay
             dist = math.hypot(dx, dy)
 
-            # Hors de portée
             if dist > self.attack_range:
                 continue
 
-            # Vérifier ALIGNEMENT
-            aligned_horizontal = abs(dy) <= self.align_tolerance  # Même Y → tir horizontal
-            aligned_vertical = abs(dx) <= self.align_tolerance    # Même X → tir vertical
-
-            if not aligned_horizontal and not aligned_vertical:
-                # Pas aligné → ne pas tirer
-                # L'unité doit se repositionner
-                continue
-
-            # Dégâts
-            dmg = max(0.0, float(stats.power))
-
-            # Direction STRICTEMENT axiale
-            if aligned_horizontal:
-                # Tir horizontal (gauche/droite)
-                fire_dx = _sign(dx)
-                fire_dy = 0.0
+            # SAÉ : Tir AXIAL
+            if abs(dx) >= abs(dy):
+                dir_x = 1.0 if dx >= 0 else -1.0
+                dir_y = 0.0
             else:
-                # Tir vertical (haut/bas)
-                fire_dx = 0.0
-                fire_dy = _sign(dy)
+                dir_x = 0.0
+                dir_y = 1.0 if dy >= 0 else -1.0
 
-            # Créer le projectile
+            # Créer projectile
+            dmg = float(stats.power)
+            pvx = dir_x * self.projectile_speed
+            pvy = dir_y * self.projectile_speed
+
             esper.create_entity(
                 Transform(pos=(ax, ay)),
-                Velocity(vx=fire_dx * self.projectile_speed, vy=fire_dy * self.projectile_speed),
-                Projectile(team_id=int(team.id), target_entity_id=tid, damage=dmg, hit_radius=0.25),
-                Lifetime(ttl=3.0, despawn_on_death=False)
+                Velocity(vx=pvx, vy=pvy),
+                Projectile(
+                    team_id=int(team.id),
+                    target_entity_id=tid,
+                    damage=float(dmg),
+                    hit_radius=0.3
+                ),
+                Lifetime(ttl=2.0, despawn_on_death=False)
             )
 
-            # Reset cooldown
             cd.timer = cd.cooldown

@@ -1,4 +1,12 @@
-# Game/Ecs/Systems/NavigationSystem.py
+"""
+NavigationSystem - Déplacement des unités le long de leur chemin.
+
+RÈGLES CRITIQUES :
+1. Suit le chemin A* nœud par nœud (mouvements axiaux uniquement)
+2. S'arrête pour combattre une TROUPE ennemie (Target.type == "unit")
+3. Continue vers la case d'attaque même si pyramide à portée
+4. La pyramide est attaquée seulement quand l'unité est ARRIVÉE
+"""
 import math
 import esper
 
@@ -9,18 +17,17 @@ from Game.Ecs.Components.speed import Speed
 from Game.Ecs.Components.velocity import Velocity
 from Game.Ecs.Components.transform import Transform
 from Game.Ecs.Components.terrain_effect import TerrainEffect
+from Game.Ecs.Components.target import Target
+from Game.Ecs.Components.health import Health
 
 
 class NavigationSystem(esper.Processor):
     """
-    Déplacement "propre jeu flash" :
-    - suit un Path (liste de GridPosition)
-    - mouvement constant (pas d'inertie) => pas de glisse / pas de diagonales à cause de l'accel
-    - anti-overshoot => snap sur le nœud
-    - NE SUPPRIME PAS Path / PathProgress (LaneRouteSystem doit pouvoir replanifier)
+    Déplacement propre style jeu flash.
+    Mouvements strictement axiaux (horizontal OU vertical, jamais diagonal).
     """
 
-    def __init__(self, *, arrive_radius: float = 0.12, min_speed: float = 0.0):
+    def __init__(self, *, arrive_radius: float = 0.15, min_speed: float = 0.0):
         super().__init__()
         self.arrive_radius = float(arrive_radius)
         self.min_speed = float(min_speed)
@@ -34,12 +41,39 @@ class NavigationSystem(esper.Processor):
             velocity = self._ensure_velocity(ent)
             speed = self._ensure_speed(ent)
 
-            nodes = getattr(path, "noeuds", None)
-            if not nodes or prog.index >= len(nodes) - 1:
-                self._finish_path(ent, velocity)
+            # Vérifier si on doit s'arrêter pour combattre une TROUPE
+            # On ne s'arrête PAS pour les pyramides - on continue jusqu'à la case d'attaque
+            should_stop_for_combat = False
+            
+            if esper.has_component(ent, Target):
+                target = esper.component_for_entity(ent, Target)
+                
+                # S'arrêter SEULEMENT pour les troupes ennemies (pas pyramides)
+                if target.type == "unit":
+                    tid = int(target.entity_id)
+                    if esper.entity_exists(tid):
+                        try:
+                            th = esper.component_for_entity(tid, Health)
+                            if not th.is_dead:
+                                # Troupe ennemie vivante → s'arrêter pour combattre
+                                should_stop_for_combat = True
+                        except:
+                            pass
+
+            if should_stop_for_combat:
+                velocity.vx = 0.0
+                velocity.vy = 0.0
                 continue
 
-            # prochain nœud à atteindre
+            # Suivre le chemin
+            nodes = getattr(path, "noeuds", None)
+            if not nodes or prog.index >= len(nodes) - 1:
+                # Chemin terminé - s'arrêter
+                velocity.vx = 0.0
+                velocity.vy = 0.0
+                continue
+
+            # Prochain nœud à atteindre
             target_node = nodes[prog.index + 1]
             tx, ty = transform.pos
             gx, gy = float(target_node.x), float(target_node.y)
@@ -48,44 +82,55 @@ class NavigationSystem(esper.Processor):
             dy = gy - ty
             dist = math.hypot(dx, dy)
 
-            # arrivé (snap)
+            # Arrivé au nœud (snap)
             if dist <= self.arrive_radius:
                 transform.pos = (gx, gy)
                 gpos.x, gpos.y = int(target_node.x), int(target_node.y)
                 prog.index += 1
 
-                # fini
                 if prog.index >= len(nodes) - 1:
-                    self._finish_path(ent, velocity)
+                    # Chemin terminé
+                    velocity.vx = 0.0
+                    velocity.vy = 0.0
                 continue
 
-            # direction vers le nœud
-            dirx = dx / dist
-            diry = dy / dist
+            # Direction vers le nœud - MOUVEMENT AXIAL STRICT
+            # On bouge soit en X soit en Y, jamais les deux
+            if abs(dx) > abs(dy):
+                # Mouvement horizontal prioritaire
+                dirx = 1.0 if dx > 0 else -1.0
+                diry = 0.0
+            else:
+                # Mouvement vertical
+                dirx = 0.0
+                diry = 1.0 if dy > 0 else -1.0
 
-            # vitesse effective (terrain)
+            # Vitesse effective (terrain)
             eff_speed = max(self.min_speed, float(speed.base) * float(speed.mult_terrain))
 
-            # si jamais tu utilises encore TerrainEffect ailleurs
             if esper.has_component(ent, TerrainEffect):
                 terr = esper.component_for_entity(ent, TerrainEffect)
                 eff_speed = terr.apply(eff_speed)
 
-            # déplacement constant => pas de glisse aux virages
             velocity.vx = dirx * eff_speed
             velocity.vy = diry * eff_speed
 
             step = eff_speed * dt
+            
+            # Anti-overshoot
             if step >= dist:
-                # anti-overshoot
                 transform.pos = (gx, gy)
                 gpos.x, gpos.y = int(target_node.x), int(target_node.y)
                 prog.index += 1
                 if prog.index >= len(nodes) - 1:
-                    self._finish_path(ent, velocity)
+                    velocity.vx = 0.0
+                    velocity.vy = 0.0
                 continue
 
-            transform.pos = (tx + velocity.vx * dt, ty + velocity.vy * dt)
+            # Mouvement normal
+            new_x = tx + velocity.vx * dt
+            new_y = ty + velocity.vy * dt
+            transform.pos = (new_x, new_y)
 
     def _ensure_transform(self, ent: int, gpos: GridPosition) -> Transform:
         if esper.has_component(ent, Transform):
@@ -107,23 +152,3 @@ class NavigationSystem(esper.Processor):
         s = Speed()
         esper.add_component(ent, s)
         return s
-
-    def _finish_path(self, ent: int, velocity: Velocity):
-        velocity.vx = 0.0
-        velocity.vy = 0.0
-
-        # ✅ IMPORTANT : on ne supprime pas Path / PathProgress
-        # LaneRouteSystem refait des chemins en vidant path.noeuds
-        try:
-            if esper.has_component(ent, Path):
-                p = esper.component_for_entity(ent, Path)
-                p.noeuds = []
-        except Exception:
-            pass
-
-        try:
-            if esper.has_component(ent, PathProgress):
-                prog = esper.component_for_entity(ent, PathProgress)
-                prog.index = 0
-        except Exception:
-            pass
