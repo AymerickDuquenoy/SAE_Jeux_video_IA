@@ -21,6 +21,16 @@ class ProjectileSystem(esper.Processor):
         super().__init__()
         self.pyramid_by_team = pyramid_by_team or {}
         self.reward_divisor = float(reward_divisor) if float(reward_divisor) > 0 else 2.0
+        self._sound_manager = None
+
+    def _get_sound_manager(self):
+        if self._sound_manager is None:
+            try:
+                from Game.App.sound_manager import sound_manager
+                self._sound_manager = sound_manager
+            except:
+                pass
+        return self._sound_manager
 
     def process(self, dt: float):
         if dt <= 0:
@@ -29,13 +39,11 @@ class ProjectileSystem(esper.Processor):
         to_delete = []
 
         for eid, (t, v, p) in esper.get_components(Transform, Velocity, Projectile):
-            # move
             x, y = t.pos
             t.pos = (x + v.vx * dt, y + v.vy * dt)
 
             tid = int(p.target_entity_id)
 
-            # cible encore valide ?
             try:
                 tt = esper.component_for_entity(tid, Transform)
                 th = esper.component_for_entity(tid, Health)
@@ -48,7 +56,6 @@ class ProjectileSystem(esper.Processor):
                 to_delete.append(eid)
                 continue
 
-            # sécurité : pas de friendly fire
             if int(tteam.id) == int(p.team_id):
                 to_delete.append(eid)
                 continue
@@ -58,7 +65,6 @@ class ProjectileSystem(esper.Processor):
             dist = math.hypot(dx, dy)
 
             if dist <= float(p.hit_radius):
-                # impact => dégâts (P0 SAÉ strict)
                 dmg = float(p.damage)
                 dmg_points = int(round(dmg))
                 if dmg_points < 0:
@@ -66,14 +72,21 @@ class ProjectileSystem(esper.Processor):
 
                 old_hp = int(th.hp)
                 th.hp = max(0, int(th.hp - dmg_points))
+                
+                # Son de hit
+                sm = self._get_sound_manager()
+                if sm:
+                    sm.play("hit")
 
-                # reward Ce/m seulement si la cible vient de mourir (old_hp > 0 et new_hp == 0)
                 if old_hp > 0 and th.hp <= 0:
                     shooter_team = int(p.team_id)
                     pyramid_eid = int(self.pyramid_by_team.get(shooter_team, 0))
+                    
+                    # Son de mort
+                    if sm:
+                        sm.play("death")
 
                     if pyramid_eid != 0:
-                        # Ce = cost de l'entité détruite (si unité)
                         ce = 0.0
                         if esper.has_component(tid, UnitStats):
                             ce = float(esper.component_for_entity(tid, UnitStats).cost)

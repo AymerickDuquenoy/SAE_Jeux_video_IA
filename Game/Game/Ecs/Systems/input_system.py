@@ -115,6 +115,13 @@ class InputSystem(esper.Processor):
         # spawn via factory => respecte SAÉ strict (C=kP, V+B=const, HP=B+1)
         ent = self.factory.create_unit(unit_key, team_id=1, grid_pos=(int(gx), int(gy)))
 
+        # Son de spawn
+        try:
+            from Game.App.sound_manager import sound_manager
+            sound_manager.play("spawn")
+        except:
+            pass
+
         if not esper.has_component(ent, Velocity):
             esper.add_component(ent, Velocity(0.0, 0.0))
 

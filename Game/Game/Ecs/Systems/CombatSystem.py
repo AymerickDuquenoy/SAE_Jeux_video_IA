@@ -25,24 +25,34 @@ def _sign(x: float) -> float:
 
 
 class CombatSystem(esper.Processor):
-    """
-    Combat SAÉ : tirs axiaux uniquement, alignement requis.
-    """
+    """Combat SAÉ : tirs axiaux uniquement, alignement requis."""
 
     def __init__(self, *, attack_range: float = 1.8, hit_cooldown: float = 0.6, projectile_speed: float = 12.0):
         super().__init__()
         self.attack_range = float(attack_range)
         self.hit_cooldown = float(hit_cooldown)
         self.projectile_speed = float(projectile_speed)
-        # Tolérance d'alignement (en cases)
         self.align_tolerance = 0.5
+        self._sound_manager = None
+        self._shoot_sound_cooldown = 0.0
+
+    def _get_sound_manager(self):
+        if self._sound_manager is None:
+            try:
+                from Game.App.sound_manager import sound_manager
+                self._sound_manager = sound_manager
+            except:
+                pass
+        return self._sound_manager
 
     def process(self, dt: float):
         if dt <= 0:
             return
 
+        # Cooldown son (éviter spam)
+        self._shoot_sound_cooldown = max(0.0, self._shoot_sound_cooldown - dt)
+
         for eid, (t, team, stats, target) in esper.get_components(Transform, Team, UnitStats, Target):
-            # Cooldown
             if esper.has_component(eid, AttackCooldown):
                 cd = esper.component_for_entity(eid, AttackCooldown)
             else:
@@ -59,7 +69,6 @@ class CombatSystem(esper.Processor):
                     esper.remove_component(eid, Target)
                 continue
 
-            # Récupérer la cible
             try:
                 tt = esper.component_for_entity(tid, Transform)
                 th = esper.component_for_entity(tid, Health)
@@ -81,33 +90,24 @@ class CombatSystem(esper.Processor):
             dy = by - ay
             dist = math.hypot(dx, dy)
 
-            # Hors de portée
             if dist > self.attack_range:
                 continue
 
-            # Vérifier ALIGNEMENT
-            aligned_horizontal = abs(dy) <= self.align_tolerance  # Même Y → tir horizontal
-            aligned_vertical = abs(dx) <= self.align_tolerance    # Même X → tir vertical
+            aligned_horizontal = abs(dy) <= self.align_tolerance
+            aligned_vertical = abs(dx) <= self.align_tolerance
 
             if not aligned_horizontal and not aligned_vertical:
-                # Pas aligné → ne pas tirer
-                # L'unité doit se repositionner
                 continue
 
-            # Dégâts
             dmg = max(0.0, float(stats.power))
 
-            # Direction STRICTEMENT axiale
             if aligned_horizontal:
-                # Tir horizontal (gauche/droite)
                 fire_dx = _sign(dx)
                 fire_dy = 0.0
             else:
-                # Tir vertical (haut/bas)
                 fire_dx = 0.0
                 fire_dy = _sign(dy)
 
-            # Créer le projectile
             esper.create_entity(
                 Transform(pos=(ax, ay)),
                 Velocity(vx=fire_dx * self.projectile_speed, vy=fire_dy * self.projectile_speed),
@@ -115,5 +115,11 @@ class CombatSystem(esper.Processor):
                 Lifetime(ttl=3.0, despawn_on_death=False)
             )
 
-            # Reset cooldown
+            # Son de tir (limité pour éviter spam)
+            if self._shoot_sound_cooldown <= 0:
+                sm = self._get_sound_manager()
+                if sm:
+                    sm.play("shoot")
+                self._shoot_sound_cooldown = 0.15
+
             cd.timer = cd.cooldown

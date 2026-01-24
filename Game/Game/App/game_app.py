@@ -27,6 +27,7 @@ from Game.Ecs.Components.grid_position import GridPosition
 from Game.Ecs.Components.projectile import Projectile
 from Game.Ecs.Components.incomeRate import IncomeRate
 from Game.Ecs.Components.pathProgress import PathProgress
+from Game.Ecs.Components.pyramidLevel import PyramidLevel
 
 from Game.Ecs.Systems.EnemySpawnerSystem import EnemySpawnerSystem
 from Game.Ecs.Systems.DifficultySystem import DifficultySystem
@@ -1364,88 +1365,56 @@ class GameApp:
                 pygame.draw.lines(self.screen, (30, 30, 30), False, pts, 2)
 
     def _draw_entities(self):
+        from Game.App.sprite_renderer import sprite_renderer
+        
         if self.world:
             self.world._activate()
 
+        # Dessiner les pyramides
         for eid in (self.player_pyramid_eid, self.enemy_pyramid_eid):
             t = esper.component_for_entity(eid, Transform)
             team = esper.component_for_entity(eid, Team)
             h = esper.component_for_entity(eid, Health)
 
             sx, sy = self._grid_to_screen(t.pos[0], t.pos[1])
-            size = int(self.game_map.tilewidth * 1.0)
-            rect = pygame.Rect(int(sx - size / 2), int(sy - size / 2), size, size)
-
-            color = (60, 200, 120) if team.id == 1 else (220, 80, 80)
-            pygame.draw.rect(self.screen, color, rect)
-            pygame.draw.rect(self.screen, (18, 18, 22), rect, 3)
-
-            bar_w = size
-            bar_h = 7
             ratio = 0.0 if h.hp_max <= 0 else max(0.0, min(1.0, h.hp / h.hp_max))
-            bar_bg = pygame.Rect(rect.x, rect.y - 12, bar_w, bar_h)
-            bar_fg = pygame.Rect(rect.x, rect.y - 12, int(bar_w * ratio), bar_h)
-            pygame.draw.rect(self.screen, (20, 20, 20), bar_bg)
-            pygame.draw.rect(self.screen, (240, 240, 240), bar_fg)
+            
+            # Niveau de la pyramide
+            level = 1
+            if esper.has_component(eid, PyramidLevel):
+                level = esper.component_for_entity(eid, PyramidLevel).level
+            
+            sprite_renderer.draw_pyramid(self.screen, sx, sy, team.id, ratio, level)
 
+        # Dessiner les unités
         for ent, (t, team, stats) in esper.get_components(Transform, Team, UnitStats):
             if ent in (self.player_pyramid_eid, self.enemy_pyramid_eid):
                 continue
 
-            sx, sy = self._grid_to_screen(t.pos[0], t.pos[1])
-            
-            # ✅ Taille et forme selon le type d'unité
-            power = getattr(stats, 'power', 0)
-            if power <= 9:
-                # Momie (S): petit cercle
-                r = 6
-                shape = "circle"
-                # Couleur plus claire
-                color = (100, 230, 160) if team.id == 1 else (255, 140, 140)
-            elif power <= 14:
-                # Dromadaire (M): cercle moyen
-                r = 9
-                shape = "circle"
-                color = (80, 220, 140) if team.id == 1 else (240, 120, 120)
-            else:
-                # Sphinx (L): grand losange
-                r = 12
-                shape = "diamond"
-                # Couleur plus foncée/dorée
-                color = (60, 180, 100) if team.id == 1 else (220, 100, 100)
-            
-            if shape == "circle":
-                pygame.draw.circle(self.screen, color, (sx, sy), r)
-                pygame.draw.circle(self.screen, (18, 18, 22), (sx, sy), r, 2)
-            else:
-                # Losange pour Sphinx
-                points = [
-                    (sx, sy - r),      # Haut
-                    (sx + r, sy),      # Droite
-                    (sx, sy + r),      # Bas
-                    (sx - r, sy)       # Gauche
-                ]
-                pygame.draw.polygon(self.screen, color, points)
-                pygame.draw.polygon(self.screen, (18, 18, 22), points, 2)
-
-            # ✅ Barre de vie des unités
+            # Vérifier si mort
             if esper.has_component(ent, Health):
                 hp = esper.component_for_entity(ent, Health)
-                if not hp.is_dead and hp.hp_max > 0:
-                    ratio = max(0.0, min(1.0, hp.hp / hp.hp_max))
-                    bar_w = r * 2 + 4
-                    bar_h = 3
-                    bar_x = sx - bar_w // 2
-                    bar_y = sy - r - 6
-                    # Fond
-                    pygame.draw.rect(self.screen, (40, 40, 40), (bar_x, bar_y, bar_w, bar_h))
-                    # Vie (vert si joueur, rouge si ennemi)
-                    hp_color = (80, 220, 140) if team.id == 1 else (240, 120, 120)
-                    pygame.draw.rect(self.screen, hp_color, (bar_x, bar_y, int(bar_w * ratio), bar_h))
+                if hp.is_dead:
+                    continue
+                ratio = max(0.0, min(1.0, hp.hp / hp.hp_max))
+            else:
+                ratio = 1.0
 
+            sx, sy = self._grid_to_screen(t.pos[0], t.pos[1])
+            
+            # Type d'unité basé sur la puissance
+            power = getattr(stats, 'power', 0)
+            if power <= 9:
+                sprite_renderer.draw_momie(self.screen, sx, sy, team.id, ratio)
+            elif power <= 14:
+                sprite_renderer.draw_dromadaire(self.screen, sx, sy, team.id, ratio)
+            else:
+                sprite_renderer.draw_sphinx(self.screen, sx, sy, team.id, ratio)
+
+        # Dessiner les projectiles
         for ent, (t, p) in esper.get_components(Transform, Projectile):
             sx, sy = self._grid_to_screen(t.pos[0], t.pos[1])
-            pygame.draw.circle(self.screen, (250, 250, 250), (sx, sy), 3)
+            sprite_renderer.draw_projectile(self.screen, sx, sy, p.team_id)
 
     def _draw_lane_selector(self):
         selected = self._get_selected_lane_index()
@@ -1544,6 +1513,92 @@ class GameApp:
         self.screen.blit(l2, (x, y + 20))
         self.screen.blit(l3, (x, y + 40))
 
+    def _draw_minimap(self):
+        """Dessine une minimap en bas à droite."""
+        if not self.nav_grid:
+            return
+            
+        grid_w = int(getattr(self.nav_grid, "width", 0))
+        grid_h = int(getattr(self.nav_grid, "height", 0))
+        if grid_w <= 0 or grid_h <= 0:
+            return
+
+        # Dimensions minimap
+        mm_w = 150
+        mm_h = 80
+        mm_x = self.width - mm_w - 15
+        mm_y = self.height - mm_h - 15
+        
+        # Fond semi-transparent
+        bg = pygame.Surface((mm_w + 4, mm_h + 4), pygame.SRCALPHA)
+        bg.fill((20, 20, 25, 200))
+        self.screen.blit(bg, (mm_x - 2, mm_y - 2))
+        
+        # Bordure
+        pygame.draw.rect(self.screen, (80, 80, 90), (mm_x - 2, mm_y - 2, mm_w + 4, mm_h + 4), 1)
+        
+        # Échelle
+        scale_x = mm_w / grid_w
+        scale_y = mm_h / grid_h
+        
+        # Dessiner le terrain (simplifié)
+        for y in range(grid_h):
+            for x in range(grid_w):
+                walk = self.nav_grid.is_walkable(x, y)
+                m = float(self.nav_grid.mult[y][x])
+                
+                px = mm_x + int(x * scale_x)
+                py = mm_y + int(y * scale_y)
+                pw = max(1, int(scale_x))
+                ph = max(1, int(scale_y))
+                
+                if not walk or m <= 0:
+                    color = (100, 50, 50)  # Interdit
+                elif m < 0.99:
+                    color = (120, 100, 70)  # Dusty
+                else:
+                    color = (80, 80, 60)  # Open
+                
+                pygame.draw.rect(self.screen, color, (px, py, pw, ph))
+        
+        # Dessiner les lanes
+        for lane_y in self.lanes_y:
+            py = mm_y + int(lane_y * scale_y)
+            pygame.draw.line(self.screen, (60, 60, 80), (mm_x, py), (mm_x + mm_w, py), 1)
+        
+        # Dessiner les pyramides
+        for eid in (self.player_pyramid_eid, self.enemy_pyramid_eid):
+            if not esper.entity_exists(eid):
+                continue
+            t = esper.component_for_entity(eid, Transform)
+            team = esper.component_for_entity(eid, Team)
+            
+            px = mm_x + int(t.pos[0] * scale_x)
+            py = mm_y + int(t.pos[1] * scale_y)
+            
+            color = (80, 220, 140) if team.id == 1 else (240, 100, 100)
+            pygame.draw.rect(self.screen, color, (px - 3, py - 3, 6, 6))
+        
+        # Dessiner les unités
+        for ent, (t, team, stats) in esper.get_components(Transform, Team, UnitStats):
+            if ent in (self.player_pyramid_eid, self.enemy_pyramid_eid):
+                continue
+            
+            if esper.has_component(ent, Health):
+                hp = esper.component_for_entity(ent, Health)
+                if hp.is_dead:
+                    continue
+            
+            px = mm_x + int(t.pos[0] * scale_x)
+            py = mm_y + int(t.pos[1] * scale_y)
+            
+            color = (100, 255, 160) if team.id == 1 else (255, 120, 120)
+            pygame.draw.circle(self.screen, color, (px, py), 2)
+        
+        # Label
+        label = self.font_small.render("Minimap", True, (180, 180, 180))
+        self.screen.blit(label, (mm_x, mm_y - 18))
+
     # ----------------------------
     # State helpers
     # ----------------------------
@@ -1584,6 +1639,14 @@ class GameApp:
                 self.enemy_kills += len(dead)
 
         self._prev_enemy_ids = current
+
+    def _play_sound(self, sound_name: str):
+        """Joue un son via le sound_manager."""
+        try:
+            from Game.App.sound_manager import sound_manager
+            sound_manager.play(sound_name)
+        except:
+            pass
 
     def _check_record(self):
         updated = False
@@ -1732,10 +1795,12 @@ class GameApp:
                 if esper.component_for_entity(self.enemy_pyramid_eid, Health).is_dead:
                     self.state = "game_over"
                     self.game_over_text = "VICTORY"
+                    self._play_sound("victory")
                     self._check_record()
                 elif esper.component_for_entity(self.player_pyramid_eid, Health).is_dead:
                     self.state = "game_over"
                     self.game_over_text = "DEFEAT"
+                    self._play_sound("defeat")
                     self._check_record()
 
             # DRAW
@@ -1761,6 +1826,9 @@ class GameApp:
                 self._draw_hud_minimal()
                 if self.opt_show_advhud:
                     self._draw_hud_advanced()
+                
+                # Minimap en bas à droite
+                self._draw_minimap()
 
             if self.state == "menu":
                 self._draw_center_overlay("Antique War", "Lane1=haut / Lane2=milieu / Lane3=bas")
@@ -1815,20 +1883,58 @@ class GameApp:
                 self.btn_menu.draw(self.screen)
 
             elif self.state == "game_over":
-                self._draw_center_overlay(self.game_over_text, "Rejoue pour battre ton record")
-                self._draw_panel(self.width // 2 - 220, self.height // 2 - 40, 440, 120, alpha=120)
-
-                s1 = self.font.render(f"Temps: {self.match_time:.1f}s", True, (240, 240, 240))
-                s2 = self.font.render(f"Kills: {self.enemy_kills}", True, (240, 240, 240))
-                s3 = self.font_small.render(
-                    f"Record: {self.best_time:.1f}s | Kills record: {self.best_kills}",
-                    True,
-                    (220, 220, 220),
-                )
-
-                self.screen.blit(s1, (self.width // 2 - 200, self.height // 2 - 26))
-                self.screen.blit(s2, (self.width // 2 - 200, self.height // 2 + 2))
-                self.screen.blit(s3, (self.width // 2 - 200, self.height // 2 + 34))
+                # Titre victoire/défaite avec couleur
+                title_color = (80, 255, 140) if self.game_over_text == "VICTORY" else (255, 100, 100)
+                title_surf = self.font_big.render(self.game_over_text, True, title_color)
+                title_rect = title_surf.get_rect(center=(self.width // 2, self.height // 2 - 140))
+                self.screen.blit(title_surf, title_rect)
+                
+                # Panel de stats
+                self._draw_panel(self.width // 2 - 220, self.height // 2 - 100, 440, 180, alpha=140)
+                
+                # Statistiques détaillées
+                stats_x = self.width // 2 - 200
+                stats_y = self.height // 2 - 85
+                line_h = 26
+                
+                # Temps de jeu
+                time_txt = f"⏱️ Temps de jeu: {self.match_time:.1f}s"
+                s1 = self.font.render(time_txt, True, (240, 240, 240))
+                self.screen.blit(s1, (stats_x, stats_y))
+                stats_y += line_h
+                
+                # Kills
+                kills_txt = f"💀 Ennemis éliminés: {self.enemy_kills}"
+                s2 = self.font.render(kills_txt, True, (240, 240, 240))
+                self.screen.blit(s2, (stats_x, stats_y))
+                stats_y += line_h
+                
+                # Niveau de difficulté atteint
+                diff_level = 1
+                if self.difficulty_system:
+                    diff_level = self.difficulty_system.level
+                diff_txt = f"📈 Niveau difficulté: {diff_level}"
+                s3 = self.font.render(diff_txt, True, (240, 240, 240))
+                self.screen.blit(s3, (stats_x, stats_y))
+                stats_y += line_h
+                
+                # Score (basé sur temps + kills)
+                score = int(self.match_time * 10 + self.enemy_kills * 50)
+                score_txt = f"⭐ Score: {score}"
+                s4 = self.font.render(score_txt, True, (255, 220, 100))
+                self.screen.blit(s4, (stats_x, stats_y))
+                stats_y += line_h + 5
+                
+                # Records
+                record_txt = f"🏆 Records: {self.best_time:.1f}s | {self.best_kills} kills"
+                s5 = self.font_small.render(record_txt, True, (200, 200, 200))
+                self.screen.blit(s5, (stats_x, stats_y))
+                
+                # Nouveau record?
+                if self.match_time >= self.best_time or self.enemy_kills >= self.best_kills:
+                    new_rec = self.font.render("🎉 NOUVEAU RECORD!", True, (255, 220, 80))
+                    rec_rect = new_rec.get_rect(center=(self.width // 2, self.height // 2 + 65))
+                    self.screen.blit(new_rec, rec_rect)
 
                 self.btn_restart.draw(self.screen)
                 self.btn_menu.draw(self.screen)
