@@ -215,6 +215,7 @@ class GameApp:
         self.cleanup_system = None
         self.enemy_spawner_system = None
         self.difficulty_system = None
+        self.random_event_system = None
 
 
         # ✅ AJOUT : enemy systems (sinon aucun spawn)
@@ -523,28 +524,29 @@ class GameApp:
 
     def _attack_cell_for_lane(self, team_id: int, lane_idx: int) -> tuple[int, int]:
         """
-        Même logique que LaneRouteSystem :
-        Lane1 haut, Lane2 milieu, Lane3 bas.
+        Case d'attaque alignée avec la lane.
+        Utilise lanes_y pour garantir l'alignement correct.
         """
         w = int(getattr(self.nav_grid, "width", 0))
         h = int(getattr(self.nav_grid, "height", 0))
         px, py = int(self.player_pyr_pos[0]), int(self.player_pyr_pos[1])
         ex, ey = int(self.enemy_pyr_pos[0]), int(self.enemy_pyr_pos[1])
+        
+        # Utiliser lanes_y pour l'alignement Y
+        lane_y = int(self.lanes_y[lane_idx])
 
         if team_id == 1:
-            if lane_idx == 0:
-                ax, ay = ex, ey - 1
-            elif lane_idx == 1:
-                ax, ay = ex - 1, ey
+            # Joueur attaque pyramide ennemie (à droite)
+            if lane_idx == 1:
+                ax, ay = ex - 1, lane_y
             else:
-                ax, ay = ex, ey + 1
+                ax, ay = ex, lane_y
         else:
-            if lane_idx == 0:
-                ax, ay = px, py - 1
-            elif lane_idx == 1:
-                ax, ay = px + 1, py
+            # Ennemi attaque pyramide joueur (à gauche)
+            if lane_idx == 1:
+                ax, ay = px + 1, lane_y
             else:
-                ax, ay = px, py + 1
+                ax, ay = px, lane_y
 
         ax = max(1, min(w - 2, int(ax)))
         ay = max(1, min(h - 2, int(ay)))
@@ -991,7 +993,7 @@ class GameApp:
         h = int(getattr(self.nav_grid, "height", 0))
         base_y = int(self.player_pyr_pos[1])
 
-        spacing = 1
+        spacing = 1  # Cases adjacentes à la pyramide
 
         l2 = self._clamp(base_y, 1, h - 2)
         l1 = self._clamp(base_y - spacing, 1, h - 2)
@@ -1064,6 +1066,7 @@ class GameApp:
         from Game.Ecs.Systems.CleanupSystem import CleanupSystem
         from Game.Ecs.Systems.EconomySystem import EconomySystem
         from Game.Ecs.Systems.UpgradeSystem import UpgradeSystem
+        from Game.Ecs.Systems.RandomEventSystem import RandomEventSystem
 
         self.input_system = InputSystem(
             self.factory,
@@ -1158,6 +1161,18 @@ class GameApp:
             print(f"[WARN] EnemySpawnerSystem failed: {e}")
             self.enemy_spawner_system = None
 
+        # ✅ RandomEventSystem pour les événements aléatoires
+        try:
+            self.random_event_system = RandomEventSystem(
+                self.nav_grid,
+                self.player_pyramid_eid,
+                self.enemy_pyramid_eid
+            )
+            print("[OK] RandomEventSystem created")
+        except Exception as e:
+            print(f"[WARN] RandomEventSystem failed: {e}")
+            self.random_event_system = None
+
         self.world.add_system(self.input_system, priority=10)
         self.world.add_system(self.economy_system, priority=15)
         self.world.add_system(self.upgrade_system, priority=18)
@@ -1167,6 +1182,10 @@ class GameApp:
             self.world.add_system(self.difficulty_system, priority=19)
         if self.enemy_spawner_system is not None:
             self.world.add_system(self.enemy_spawner_system, priority=21)
+
+        # ✅ RandomEventSystem
+        if self.random_event_system is not None:
+            self.world.add_system(self.random_event_system, priority=22)
 
         self.world.add_system(self.astar_system, priority=20)
         self.world.add_system(self.lane_route_system, priority=23)
@@ -1342,6 +1361,21 @@ class GameApp:
             pygame.draw.circle(self.screen, color, (sx, sy), r)
             pygame.draw.circle(self.screen, (18, 18, 22), (sx, sy), r, 2)
 
+            # ✅ Barre de vie des unités
+            if esper.has_component(ent, Health):
+                hp = esper.component_for_entity(ent, Health)
+                if not hp.is_dead and hp.hp_max > 0:
+                    ratio = max(0.0, min(1.0, hp.hp / hp.hp_max))
+                    bar_w = 16
+                    bar_h = 3
+                    bar_x = sx - bar_w // 2
+                    bar_y = sy - r - 6
+                    # Fond
+                    pygame.draw.rect(self.screen, (40, 40, 40), (bar_x, bar_y, bar_w, bar_h))
+                    # Vie (vert si joueur, rouge si ennemi)
+                    hp_color = (80, 220, 140) if team.id == 1 else (240, 120, 120)
+                    pygame.draw.rect(self.screen, hp_color, (bar_x, bar_y, int(bar_w * ratio), bar_h))
+
         for ent, (t, p) in esper.get_components(Transform, Projectile):
             sx, sy = self._grid_to_screen(t.pos[0], t.pos[1])
             pygame.draw.circle(self.screen, (250, 250, 250), (sx, sy), 3)
@@ -1385,6 +1419,8 @@ class GameApp:
         try:
             income = esper.component_for_entity(self.player_pyramid_eid, IncomeRate)
             income_txt = f"{income.rate:.1f}/s"
+            if hasattr(income, 'multiplier') and income.multiplier != 1.0:
+                income_txt += f" (x{income.multiplier:.2f})"
         except Exception:
             income_txt = "?"
 
@@ -1404,6 +1440,19 @@ class GameApp:
 
         map_txt = self.font_small.render(f"Map: {self.last_map_name}", True, (200, 200, 200))
         self.screen.blit(map_txt, (22, 118))
+
+        # ✅ Afficher message d'événement aléatoire
+        if self.random_event_system:
+            msg = self.random_event_system.get_message()
+            if msg:
+                event_surf = self.font_big.render(msg, True, (255, 220, 80))
+                event_rect = event_surf.get_rect(center=(self.width // 2, self.height // 2 - 100))
+                # Fond semi-transparent
+                bg_rect = event_rect.inflate(20, 10)
+                bg_surf = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+                bg_surf.fill((0, 0, 0, 180))
+                self.screen.blit(bg_surf, bg_rect.topleft)
+                self.screen.blit(event_surf, event_rect)
 
     def _draw_hud_advanced(self):
         self._draw_panel(12, 112, 640, 74, alpha=100)

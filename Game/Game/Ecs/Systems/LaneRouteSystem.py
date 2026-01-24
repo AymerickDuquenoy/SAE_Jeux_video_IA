@@ -146,33 +146,33 @@ class LaneRouteSystem:
 
     def _attack_cell(self, team_id: int, lane_idx: int) -> tuple[int, int]:
         """
-        ✅ Lane 1 : attaque PAR LE HAUT
-        ✅ Lane 2 : attaque AU MILIEU
-        ✅ Lane 3 : attaque PAR LE BAS
-
-        C'est ce qui évite "tir dans le vide" -> toujours aligné ligne/colonne.
+        Case d'attaque alignée avec la lane.
+        Utilise lanes_y pour garantir l'alignement correct.
         """
         w = int(getattr(self.nav, "width", 0))
         h = int(getattr(self.nav, "height", 0))
         px, py = self.player_pyr
         ex, ey = self.enemy_pyr
+        
+        # Utiliser lanes_y pour l'alignement Y
+        lane_y = int(self.lanes_y[lane_idx])
 
         if team_id == 1:
-            # attaque pyramide ennemie (droite)
-            if lane_idx == 0:
-                ax, ay = ex, ey - 1
-            elif lane_idx == 1:
-                ax, ay = ex - 1, ey
+            # Joueur attaque pyramide ennemie (à droite)
+            if lane_idx == 1:
+                # Lane milieu : à gauche de la pyramide
+                ax, ay = ex - 1, lane_y
             else:
-                ax, ay = ex, ey + 1
+                # Lane haut/bas : aligné en X avec pyramide, sur la lane Y
+                ax, ay = ex, lane_y
         else:
-            # attaque pyramide joueur (gauche)
-            if lane_idx == 0:
-                ax, ay = px, py - 1
-            elif lane_idx == 1:
-                ax, ay = px + 1, py
+            # Ennemi attaque pyramide joueur (à gauche)
+            if lane_idx == 1:
+                # Lane milieu : à droite de la pyramide
+                ax, ay = px + 1, lane_y
             else:
-                ax, ay = px, py + 1
+                # Lane haut/bas : aligné en X avec pyramide, sur la lane Y
+                ax, ay = px, lane_y
 
         ax = max(1, min(w - 2, int(ax)))
         ay = max(1, min(h - 2, int(ay)))

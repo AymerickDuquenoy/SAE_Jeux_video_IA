@@ -1,150 +1,58 @@
-# Game/Ecs/Systems/RandomEventSystem.py
 """
-Événements aléatoires du Game Design:
-- Tempête de sable: échange zones rapide/lente pendant 10s
-- Nuée de sauterelles: 15 dégâts à toutes les troupes
-- Livraison de fouets: production x1.25 pendant 10s (joueur aléatoire)
+RandomEventSystem - Événements aléatoires du Game Design
+
+Événements possibles (un seul actif à la fois) :
+1. Tempête de sable : échange zones Open ↔ Dusty pendant 10s
+2. Nuée de sauterelles : 15 dégâts à TOUTES les troupes (instantané)
+3. Livraison de fouets : +25% production pour une équipe pendant 10s
 """
 import random
 import esper
 
-from Game.Ecs.Components.health import Health
+from Game.Ecs.Components.transform import Transform
 from Game.Ecs.Components.team import Team
+from Game.Ecs.Components.health import Health
 from Game.Ecs.Components.unitStats import UnitStats
 from Game.Ecs.Components.incomeRate import IncomeRate
 
 
 class RandomEventSystem(esper.Processor):
     """
-    Gère les événements aléatoires.
-    Un seul événement actif à la fois (comme spécifié).
+    Gère les événements aléatoires pendant la partie.
     """
 
-    def __init__(
-        self,
-        nav_grid,
-        *,
-        player_pyramid_eid: int,
-        enemy_pyramid_eid: int,
-        min_interval: float = 30.0,
-        max_interval: float = 60.0,
-        event_duration: float = 10.0,
-        locust_damage: int = 15,
-        whip_multiplier: float = 1.25,
-    ):
+    def __init__(self, nav_grid, player_pyramid_eid: int, enemy_pyramid_eid: int):
         super().__init__()
         self.nav_grid = nav_grid
         self.player_pyramid_eid = int(player_pyramid_eid)
         self.enemy_pyramid_eid = int(enemy_pyramid_eid)
         
-        self.min_interval = float(min_interval)
-        self.max_interval = float(max_interval)
-        self.event_duration = float(event_duration)
-        self.locust_damage = int(locust_damage)
-        self.whip_multiplier = float(whip_multiplier)
+        # Timing
+        self.time_since_last_event = 0.0
+        self.min_interval = 25.0  # Minimum 25s entre événements
+        self.max_interval = 45.0  # Maximum 45s
+        self.next_event_time = random.uniform(self.min_interval, self.max_interval)
         
-        # État
-        self.timer = random.uniform(self.min_interval, self.max_interval)
-        self.active_event = None  # None, "sandstorm", "locust", "whip"
+        # État événement actif
+        self.active_event = None  # "sandstorm", "locusts", "whip_bonus"
         self.event_timer = 0.0
-        self.affected_team = 0  # Pour whip bonus
+        self.event_duration = 10.0
         
-        # Pour sandstorm: sauvegarder les multiplicateurs originaux
-        self.original_mults = {}
+        # Pour tempête de sable
+        self.original_mults = None
         
-        self.last_message = ""
+        # Pour bonus fouets
+        self.bonus_team = None
+        
+        # Message à afficher
+        self.current_message = ""
+        self.message_timer = 0.0
 
-    def _trigger_sandstorm(self):
-        """Tempête de sable: échange zones rapide/lente."""
-        self.active_event = "sandstorm"
-        self.event_timer = self.event_duration
-        self.last_message = "⛈️ TEMPÊTE DE SABLE! Terrain modifié pour 10s"
-        
-        if not self.nav_grid:
-            return
-            
-        # Sauvegarder et inverser les multiplicateurs
-        w = getattr(self.nav_grid, 'width', 0)
-        h = getattr(self.nav_grid, 'height', 0)
-        
-        self.original_mults = {}
-        for y in range(h):
-            for x in range(w):
-                try:
-                    m = float(self.nav_grid.mult[y][x])
-                    self.original_mults[(x, y)] = m
-                    
-                    # Inverser: rapide (1.0) <-> lent (0.5)
-                    if m >= 0.9:
-                        new_m = 0.5
-                    elif m >= 0.4 and m < 0.9:
-                        new_m = 1.0
-                    else:
-                        new_m = m  # Infranchissable reste infranchissable
-                    
-                    self.nav_grid.mult[y][x] = new_m
-                except:
-                    pass
-
-    def _end_sandstorm(self):
-        """Restaurer le terrain après tempête."""
-        if not self.nav_grid or not self.original_mults:
-            return
-            
-        for (x, y), m in self.original_mults.items():
-            try:
-                self.nav_grid.mult[y][x] = m
-            except:
-                pass
-        
-        self.original_mults = {}
-        self.last_message = "Tempête terminée"
-
-    def _trigger_locust(self):
-        """Nuée de sauterelles: dégâts à toutes les troupes."""
-        self.active_event = "locust"
-        self.event_timer = 0.5  # Effet instantané
-        self.last_message = f"🦗 SAUTERELLES! {self.locust_damage} dégâts à toutes les troupes"
-        
-        # Appliquer dégâts
-        for eid, (hp, team, stats) in esper.get_components(Health, Team, UnitStats):
-            if hp.is_dead:
-                continue
-            hp.hp = max(0, int(hp.hp) - self.locust_damage)
-            if hp.hp <= 0:
-                hp.is_dead = True
-
-    def _trigger_whip(self):
-        """Livraison de fouets: bonus production."""
-        self.active_event = "whip"
-        self.event_timer = self.event_duration
-        self.affected_team = random.choice([1, 2])
-        
-        team_name = "Joueur" if self.affected_team == 1 else "Ennemi"
-        self.last_message = f"🪶 BONUS FOUETS! {team_name} +25% production pour 10s"
-        
-        # Appliquer bonus
-        pyr_eid = self.player_pyramid_eid if self.affected_team == 1 else self.enemy_pyramid_eid
-        
-        if esper.entity_exists(pyr_eid) and esper.has_component(pyr_eid, IncomeRate):
-            income = esper.component_for_entity(pyr_eid, IncomeRate)
-            income.multiplier *= self.whip_multiplier
-
-    def _end_whip(self):
-        """Retirer bonus production."""
-        pyr_eid = self.player_pyramid_eid if self.affected_team == 1 else self.enemy_pyramid_eid
-        
-        if esper.entity_exists(pyr_eid) and esper.has_component(pyr_eid, IncomeRate):
-            income = esper.component_for_entity(pyr_eid, IncomeRate)
-            income.multiplier /= self.whip_multiplier
-        
-        self.last_message = "Bonus fouets terminé"
-
-    def hud_line(self) -> str:
-        """Ligne pour le HUD."""
-        if self.active_event:
-            return f"Event: {self.active_event} ({self.event_timer:.1f}s)"
-        return f"Next event in: {self.timer:.1f}s"
+    def get_message(self) -> str:
+        """Retourne le message d'événement actuel."""
+        if self.message_timer > 0:
+            return self.current_message
+        return ""
 
     def process(self, dt: float):
         if dt <= 0:
@@ -153,28 +61,109 @@ class RandomEventSystem(esper.Processor):
         # Gérer événement actif
         if self.active_event:
             self.event_timer -= dt
+            self.message_timer -= dt
             
             if self.event_timer <= 0:
-                # Fin de l'événement
-                if self.active_event == "sandstorm":
-                    self._end_sandstorm()
-                elif self.active_event == "whip":
-                    self._end_whip()
-                
-                self.active_event = None
-                self.timer = random.uniform(self.min_interval, self.max_interval)
+                self._end_event()
             return
 
         # Timer pour prochain événement
-        self.timer -= dt
+        self.time_since_last_event += dt
         
-        if self.timer <= 0:
-            # Déclencher un événement aléatoire
-            event_type = random.choice(["sandstorm", "locust", "whip"])
+        if self.time_since_last_event >= self.next_event_time:
+            self._trigger_random_event()
+            self.time_since_last_event = 0.0
+            self.next_event_time = random.uniform(self.min_interval, self.max_interval)
+
+    def _trigger_random_event(self):
+        """Déclenche un événement aléatoire."""
+        event_type = random.choice(["sandstorm", "locusts", "whip_bonus"])
+        
+        if event_type == "sandstorm":
+            self._start_sandstorm()
+        elif event_type == "locusts":
+            self._start_locusts()
+        else:
+            self._start_whip_bonus()
+
+    def _start_sandstorm(self):
+        """Tempête de sable : échange zones Open ↔ Dusty."""
+        self.active_event = "sandstorm"
+        self.event_timer = self.event_duration
+        self.message_timer = 3.0
+        self.current_message = "⛈️ TEMPÊTE DE SABLE! Terrain modifié!"
+        
+        # Sauvegarder et échanger les multiplicateurs
+        if hasattr(self.nav_grid, 'mult'):
+            h = len(self.nav_grid.mult)
+            w = len(self.nav_grid.mult[0]) if h > 0 else 0
             
-            if event_type == "sandstorm":
-                self._trigger_sandstorm()
-            elif event_type == "locust":
-                self._trigger_locust()
+            self.original_mults = [[self.nav_grid.mult[y][x] for x in range(w)] for y in range(h)]
+            
+            for y in range(h):
+                for x in range(w):
+                    m = self.nav_grid.mult[y][x]
+                    if m == 1.0:  # Open → Dusty
+                        self.nav_grid.mult[y][x] = 0.5
+                    elif 0 < m < 1.0:  # Dusty → Open
+                        self.nav_grid.mult[y][x] = 1.0
+                    # Interdit (0) reste interdit
+
+    def _start_locusts(self):
+        """Nuée de sauterelles : 15 dégâts à toutes les troupes."""
+        self.active_event = "locusts"
+        self.event_timer = 0.5  # Très court, effet instantané
+        self.message_timer = 3.0
+        self.current_message = "🦗 SAUTERELLES! 15 dégâts à tous!"
+        
+        damage = 15
+        
+        # Appliquer dégâts à toutes les unités (pas pyramides)
+        for eid, (hp, stats) in esper.get_components(Health, UnitStats):
+            if hp.is_dead:
+                continue
+            hp.hp = max(0, hp.hp - damage)
+
+    def _start_whip_bonus(self):
+        """Bonus fouets : +25% production pour une équipe."""
+        self.active_event = "whip_bonus"
+        self.event_timer = self.event_duration
+        self.message_timer = 3.0
+        
+        # Choisir équipe aléatoire
+        self.bonus_team = random.choice([1, 2])
+        team_name = "JOUEUR" if self.bonus_team == 1 else "ENNEMI"
+        self.current_message = f"🪶 BONUS FOUETS! {team_name} +25% production!"
+        
+        # Appliquer bonus
+        pyramid_eid = self.player_pyramid_eid if self.bonus_team == 1 else self.enemy_pyramid_eid
+        if esper.has_component(pyramid_eid, IncomeRate):
+            income = esper.component_for_entity(pyramid_eid, IncomeRate)
+            if hasattr(income, 'multiplier'):
+                income.multiplier = 1.25
             else:
-                self._trigger_whip()
+                income.rate *= 1.25
+
+    def _end_event(self):
+        """Termine l'événement actif."""
+        if self.active_event == "sandstorm" and self.original_mults:
+            # Restaurer le terrain
+            h = len(self.original_mults)
+            w = len(self.original_mults[0]) if h > 0 else 0
+            for y in range(h):
+                for x in range(w):
+                    self.nav_grid.mult[y][x] = self.original_mults[y][x]
+            self.original_mults = None
+            
+        elif self.active_event == "whip_bonus" and self.bonus_team:
+            # Retirer bonus
+            pyramid_eid = self.player_pyramid_eid if self.bonus_team == 1 else self.enemy_pyramid_eid
+            if esper.has_component(pyramid_eid, IncomeRate):
+                income = esper.component_for_entity(pyramid_eid, IncomeRate)
+                if hasattr(income, 'multiplier'):
+                    income.multiplier = 1.0
+                else:
+                    income.rate /= 1.25
+            self.bonus_team = None
+        
+        self.active_event = None

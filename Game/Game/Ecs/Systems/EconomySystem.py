@@ -42,7 +42,7 @@ class EconomySystem:
         self._ensure_player_has_income()
 
         for _eid, (wallet, income) in esper.get_components(Wallet, IncomeRate):
-            wallet.solde += float(income.rate) * float(dt)
+            wallet.solde += getattr(income, "effective_rate", income.rate) * float(dt)
             if wallet.solde < 0:
                 wallet.solde = 0.0
 
