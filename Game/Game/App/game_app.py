@@ -217,6 +217,7 @@ class GameApp:
         self.difficulty_system = None
         self.random_event_system = None
         self.pyramid_defense_system = None
+        self.ai_behavior_system = None
 
 
         # ✅ AJOUT : enemy systems (sinon aucun spawn)
@@ -1069,6 +1070,7 @@ class GameApp:
         from Game.Ecs.Systems.UpgradeSystem import UpgradeSystem
         from Game.Ecs.Systems.RandomEventSystem import RandomEventSystem
         from Game.Ecs.Systems.PyramidDefenseSystem import PyramidDefenseSystem
+        from Game.Ecs.Systems.AIBehaviorSystem import AIBehaviorSystem
 
         self.input_system = InputSystem(
             self.factory,
@@ -1189,6 +1191,16 @@ class GameApp:
             print(f"[WARN] PyramidDefenseSystem failed: {e}")
             self.pyramid_defense_system = None
 
+        # ✅ AIBehaviorSystem - comportements IA différenciés
+        try:
+            self.ai_behavior_system = AIBehaviorSystem(
+                pyramid_ids={self.player_pyramid_eid, self.enemy_pyramid_eid}
+            )
+            print("[OK] AIBehaviorSystem created")
+        except Exception as e:
+            print(f"[WARN] AIBehaviorSystem failed: {e}")
+            self.ai_behavior_system = None
+
         self.world.add_system(self.input_system, priority=10)
         self.world.add_system(self.economy_system, priority=15)
         self.world.add_system(self.upgrade_system, priority=18)
@@ -1214,6 +1226,10 @@ class GameApp:
         # ✅ PyramidDefenseSystem après combat
         if self.pyramid_defense_system is not None:
             self.world.add_system(self.pyramid_defense_system, priority=55)
+        
+        # ✅ AIBehaviorSystem - comportements IA différenciés
+        if self.ai_behavior_system is not None:
+            self.world.add_system(self.ai_behavior_system, priority=35)  # Entre targeting et combat
         
         self.world.add_system(self.projectile_system, priority=60)
         self.world.add_system(self.cleanup_system, priority=90)
@@ -1377,17 +1393,47 @@ class GameApp:
                 continue
 
             sx, sy = self._grid_to_screen(t.pos[0], t.pos[1])
-            r = 9
-            color = (80, 220, 140) if team.id == 1 else (240, 120, 120)
-            pygame.draw.circle(self.screen, color, (sx, sy), r)
-            pygame.draw.circle(self.screen, (18, 18, 22), (sx, sy), r, 2)
+            
+            # ✅ Taille et forme selon le type d'unité
+            power = getattr(stats, 'power', 0)
+            if power <= 9:
+                # Momie (S): petit cercle
+                r = 6
+                shape = "circle"
+                # Couleur plus claire
+                color = (100, 230, 160) if team.id == 1 else (255, 140, 140)
+            elif power <= 14:
+                # Dromadaire (M): cercle moyen
+                r = 9
+                shape = "circle"
+                color = (80, 220, 140) if team.id == 1 else (240, 120, 120)
+            else:
+                # Sphinx (L): grand losange
+                r = 12
+                shape = "diamond"
+                # Couleur plus foncée/dorée
+                color = (60, 180, 100) if team.id == 1 else (220, 100, 100)
+            
+            if shape == "circle":
+                pygame.draw.circle(self.screen, color, (sx, sy), r)
+                pygame.draw.circle(self.screen, (18, 18, 22), (sx, sy), r, 2)
+            else:
+                # Losange pour Sphinx
+                points = [
+                    (sx, sy - r),      # Haut
+                    (sx + r, sy),      # Droite
+                    (sx, sy + r),      # Bas
+                    (sx - r, sy)       # Gauche
+                ]
+                pygame.draw.polygon(self.screen, color, points)
+                pygame.draw.polygon(self.screen, (18, 18, 22), points, 2)
 
             # ✅ Barre de vie des unités
             if esper.has_component(ent, Health):
                 hp = esper.component_for_entity(ent, Health)
                 if not hp.is_dead and hp.hp_max > 0:
                     ratio = max(0.0, min(1.0, hp.hp / hp.hp_max))
-                    bar_w = 16
+                    bar_w = r * 2 + 4
                     bar_h = 3
                     bar_x = sx - bar_w // 2
                     bar_y = sy - r - 6
@@ -1476,7 +1522,7 @@ class GameApp:
                 self.screen.blit(event_surf, event_rect)
 
     def _draw_hud_advanced(self):
-        self._draw_panel(12, 112, 640, 74, alpha=100)
+        self._draw_panel(12, 112, 640, 94, alpha=100)
         x = 22
         y = 120
 
@@ -1487,8 +1533,16 @@ class GameApp:
             (230, 230, 230),
         )
         l2 = self.font_small.render(f"Temps: {self.match_time:.1f}s | Kills: {self.enemy_kills}", True, (230, 230, 230))
+        
+        # ✅ Afficher niveau de difficulté
+        diff_txt = ""
+        if self.difficulty_system:
+            diff_txt = self.difficulty_system.hud_line()
+        l3 = self.font_small.render(diff_txt, True, (255, 200, 100))
+        
         self.screen.blit(l1, (x, y))
-        self.screen.blit(l2, (x, y + 22))
+        self.screen.blit(l2, (x, y + 20))
+        self.screen.blit(l3, (x, y + 40))
 
     # ----------------------------
     # State helpers

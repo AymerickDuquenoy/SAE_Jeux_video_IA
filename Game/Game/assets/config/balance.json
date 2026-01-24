@@ -13,19 +13,32 @@
   "pyramid": {
     "hp_base": 500,
     "level_max": 5,
-    "income_base": 2.0,
+    "income_base": 2.5,
     "income_mult": 1.25,
-    "upgrade_costs": [100, 125, 150, 175, 200]
+    "upgrade_costs": [100, 125, 150, 175, 200],
+    "defense_range": 3.5,
+    "defense_damage": 8,
+    "defense_cooldown": 1.0
   },
   "economy": {
-    "starting_money": 100
+    "starting_money": 120
+  },
+  "difficulty": {
+    "step_seconds": 30,
+    "level_max": 15,
+    "spawn_interval_base": 6.0,
+    "spawn_interval_min": 2.0,
+    "spawn_interval_decay": 0.92,
+    "burst_every_levels": 3,
+    "burst_max": 4,
+    "enemy_income_base": 2.0,
+    "enemy_income_per_level": 0.3
   },
   "map": {
     "player_pyramid": [2, 10],
     "enemy_pyramid": [27, 10],
     "player_spawn": [3, 10],
     "enemy_spawn": [26, 10],
-
     "dusty_rects": 7,
     "forbidden_rects": 3
   }

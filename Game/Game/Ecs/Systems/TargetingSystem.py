@@ -5,6 +5,11 @@ RÈGLES CRITIQUES :
 1. Les troupes ne ciblent que les ennemis sur la MÊME LANE (tolérance Y)
 2. La pyramide n'est ciblée que si l'unité est ARRIVÉE (chemin terminé)
 3. Priorité : troupes ennemies > pyramide
+
+IA DIFFÉRENCIÉE :
+- Momie (S): comportement normal, attaque sur la lane
+- Dromadaire (M): portée d'aggro augmentée, priorité aux combats
+- Sphinx (L): ignore les troupes, cible directement la pyramide
 """
 import math
 import esper
@@ -21,7 +26,7 @@ from Game.Ecs.Components.velocity import Velocity
 
 class TargetingSystem(esper.Processor):
     """
-    Assigne les cibles en respectant les lanes.
+    Assigne les cibles en respectant les lanes et les comportements IA.
     """
 
     def __init__(self, *, goals_by_team: dict, pyramid_ids: set[int], attack_range: float = 1.5):
@@ -32,6 +37,19 @@ class TargetingSystem(esper.Processor):
         # Tolérance Y pour être sur la même "lane"
         # IMPORTANT: doit être < spacing des lanes (spacing=1)
         self.lane_tolerance = 0.5
+        
+        # Portée bonus pour Dromadaires (tanks)
+        self.tank_range_bonus = 1.0
+
+    def _get_unit_type(self, stats: UnitStats) -> str:
+        """Détermine le type d'unité (S/M/L) basé sur les stats."""
+        power = getattr(stats, 'power', 0)
+        if power <= 9:
+            return "S"  # Momie
+        elif power <= 14:
+            return "M"  # Dromadaire
+        else:
+            return "L"  # Sphinx
 
     def _is_same_lane(self, y1: float, y2: float) -> bool:
         """Vérifie si deux positions Y sont sur la même lane."""
@@ -40,10 +58,6 @@ class TargetingSystem(esper.Processor):
     def _is_arrived(self, ent: int) -> bool:
         """
         Vérifie si l'unité est arrivée à destination (chemin terminé).
-        Une unité est "arrivée" si :
-        - Elle n'a pas de Path, OU
-        - Son Path est vide, OU
-        - Elle a atteint la fin de son Path
         """
         if not esper.has_component(ent, Path):
             return True
@@ -69,7 +83,7 @@ class TargetingSystem(esper.Processor):
         return abs(vel.vx) < 0.01 and abs(vel.vy) < 0.01
 
     def process(self, dt: float):
-        # Collecter toutes les cibles potentielles (entités vivantes avec Health)
+        # Collecter toutes les cibles potentielles
         candidates = []
         for eid, (t, team, hp) in esper.get_components(Transform, Team, Health):
             if hp.is_dead:
@@ -77,14 +91,19 @@ class TargetingSystem(esper.Processor):
             is_pyramid = (eid in self.pyramid_ids)
             candidates.append((eid, t, team, is_pyramid))
 
-        # Pour chaque unité (entités avec UnitStats = troupes)
+        # Pour chaque unité
         for eid, (t, team, stats) in esper.get_components(Transform, Team, UnitStats):
-            # Ignorer les morts
             if esper.has_component(eid, Health):
                 if esper.component_for_entity(eid, Health).is_dead:
                     continue
 
             ax, ay = t.pos
+            unit_type = self._get_unit_type(stats)
+            
+            # Ajuster la portée selon le type
+            effective_range = self.attack_range
+            if unit_type == "M":  # Dromadaire = tank, portée augmentée
+                effective_range += self.tank_range_bonus
             
             best_unit_id = None
             best_unit_dist = 999999.0
@@ -93,45 +112,51 @@ class TargetingSystem(esper.Processor):
             best_pyramid_dist = 999999.0
 
             for cid, ct, cteam, is_pyramid in candidates:
-                # Pas soi-même
                 if cid == eid:
                     continue
-                # Pas un allié
                 if cteam.id == team.id:
                     continue
 
                 bx, by = ct.pos
                 d = math.hypot(bx - ax, by - ay)
 
-                # Hors de portée
-                if d > self.attack_range:
+                if d > effective_range:
                     continue
 
                 if is_pyramid:
-                    # Pyramide : stocker pour plus tard
                     if d < best_pyramid_dist:
                         best_pyramid_dist = d
                         best_pyramid_id = cid
                 else:
-                    # Troupe ennemie : vérifier MÊME LANE
+                    # Sphinx ignore les unités ennemies
+                    if unit_type == "L":
+                        continue
+                    
+                    # Vérifier même lane
                     if self._is_same_lane(ay, by):
                         if d < best_unit_dist:
                             best_unit_dist = d
                             best_unit_id = cid
 
-            # Décision de ciblage
-            # Priorité 1 : Troupe ennemie sur la même lane
-            if best_unit_id is not None:
-                self._set_target(eid, best_unit_id, "unit")
-            
-            # Priorité 2 : Pyramide SEULEMENT si arrivé à destination
-            elif best_pyramid_id is not None and self._is_arrived(eid):
-                self._set_target(eid, best_pyramid_id, "pyramid")
-            
-            # Sinon : pas de cible
+            # Décision de ciblage selon le type
+            if unit_type == "L":
+                # Sphinx: TOUJOURS cibler la pyramide si à portée ou arrivé
+                if best_pyramid_id is not None:
+                    self._set_target(eid, best_pyramid_id, "pyramid")
+                elif self._is_arrived(eid) and best_pyramid_id is not None:
+                    self._set_target(eid, best_pyramid_id, "pyramid")
+                else:
+                    if esper.has_component(eid, Target):
+                        esper.remove_component(eid, Target)
             else:
-                if esper.has_component(eid, Target):
-                    esper.remove_component(eid, Target)
+                # Momie et Dromadaire: priorité aux troupes
+                if best_unit_id is not None:
+                    self._set_target(eid, best_unit_id, "unit")
+                elif best_pyramid_id is not None and self._is_arrived(eid):
+                    self._set_target(eid, best_pyramid_id, "pyramid")
+                else:
+                    if esper.has_component(eid, Target):
+                        esper.remove_component(eid, Target)
 
     def _set_target(self, eid: int, target_id: int, target_type: str):
         """Assigne ou met à jour la cible d'une unité."""

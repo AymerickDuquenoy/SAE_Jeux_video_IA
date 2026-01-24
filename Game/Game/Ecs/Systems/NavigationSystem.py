@@ -6,6 +6,10 @@ RÈGLES CRITIQUES :
 2. S'arrête pour combattre une TROUPE ennemie (Target.type == "unit")
 3. Continue vers la case d'attaque même si pyramide à portée
 4. La pyramide est attaquée seulement quand l'unité est ARRIVÉE
+
+IA DIFFÉRENCIÉE :
+- Momie/Dromadaire: s'arrêtent pour combattre les troupes
+- Sphinx: ne s'arrête JAMAIS pour les troupes, fonce vers la pyramide
 """
 import math
 import esper
@@ -19,6 +23,7 @@ from Game.Ecs.Components.transform import Transform
 from Game.Ecs.Components.terrain_effect import TerrainEffect
 from Game.Ecs.Components.target import Target
 from Game.Ecs.Components.health import Health
+from Game.Ecs.Components.unitStats import UnitStats
 
 
 class NavigationSystem(esper.Processor):
@@ -32,6 +37,19 @@ class NavigationSystem(esper.Processor):
         self.arrive_radius = float(arrive_radius)
         self.min_speed = float(min_speed)
 
+    def _get_unit_type(self, ent: int) -> str:
+        """Détermine le type d'unité (S/M/L) basé sur les stats."""
+        if not esper.has_component(ent, UnitStats):
+            return "S"
+        stats = esper.component_for_entity(ent, UnitStats)
+        power = getattr(stats, 'power', 0)
+        if power <= 9:
+            return "S"  # Momie
+        elif power <= 14:
+            return "M"  # Dromadaire
+        else:
+            return "L"  # Sphinx
+
     def process(self, dt: float):
         if dt <= 0:
             return
@@ -41,11 +59,14 @@ class NavigationSystem(esper.Processor):
             velocity = self._ensure_velocity(ent)
             speed = self._ensure_speed(ent)
 
+            # Identifier le type d'unité
+            unit_type = self._get_unit_type(ent)
+
             # Vérifier si on doit s'arrêter pour combattre une TROUPE
-            # On ne s'arrête PAS pour les pyramides - on continue jusqu'à la case d'attaque
+            # SPHINX (L) ne s'arrête JAMAIS - il fonce vers la pyramide
             should_stop_for_combat = False
             
-            if esper.has_component(ent, Target):
+            if unit_type != "L" and esper.has_component(ent, Target):
                 target = esper.component_for_entity(ent, Target)
                 
                 # S'arrêter SEULEMENT pour les troupes ennemies (pas pyramides)
