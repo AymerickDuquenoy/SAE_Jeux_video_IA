@@ -216,6 +216,7 @@ class GameApp:
         self.enemy_spawner_system = None
         self.difficulty_system = None
         self.random_event_system = None
+        self.pyramid_defense_system = None
 
 
         # ✅ AJOUT : enemy systems (sinon aucun spawn)
@@ -1067,6 +1068,7 @@ class GameApp:
         from Game.Ecs.Systems.EconomySystem import EconomySystem
         from Game.Ecs.Systems.UpgradeSystem import UpgradeSystem
         from Game.Ecs.Systems.RandomEventSystem import RandomEventSystem
+        from Game.Ecs.Systems.PyramidDefenseSystem import PyramidDefenseSystem
 
         self.input_system = InputSystem(
             self.factory,
@@ -1173,6 +1175,20 @@ class GameApp:
             print(f"[WARN] RandomEventSystem failed: {e}")
             self.random_event_system = None
 
+        # ✅ PyramidDefenseSystem - les pyramides tirent sur les ennemis
+        try:
+            pyramid_ids = {self.player_pyramid_eid, self.enemy_pyramid_eid}
+            self.pyramid_defense_system = PyramidDefenseSystem(
+                pyramid_ids=pyramid_ids,
+                attack_range=3.5,  # Portée de défense
+                damage=8.0,        # Dégâts par tir
+                cooldown=1.0,      # Temps entre tirs
+            )
+            print("[OK] PyramidDefenseSystem created")
+        except Exception as e:
+            print(f"[WARN] PyramidDefenseSystem failed: {e}")
+            self.pyramid_defense_system = None
+
         self.world.add_system(self.input_system, priority=10)
         self.world.add_system(self.economy_system, priority=15)
         self.world.add_system(self.upgrade_system, priority=18)
@@ -1194,6 +1210,11 @@ class GameApp:
         self.world.add_system(self.nav_system, priority=30)
         self.world.add_system(self.targeting_system, priority=40)
         self.world.add_system(self.combat_system, priority=50)
+        
+        # ✅ PyramidDefenseSystem après combat
+        if self.pyramid_defense_system is not None:
+            self.world.add_system(self.pyramid_defense_system, priority=55)
+        
         self.world.add_system(self.projectile_system, priority=60)
         self.world.add_system(self.cleanup_system, priority=90)
 
