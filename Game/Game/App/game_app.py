@@ -1129,9 +1129,15 @@ class GameApp:
         default_income = float(self.balance.get("pyramid", {}).get("income_base", 2.0))
         self.economy_system = EconomySystem(player_pyramid_eid=self.player_pyramid_eid, default_income=default_income)
 
-        upgrade_costs = self.balance.get("pyramid", {}).get("upgrade_costs", [100.0])
-        base_upgrade_cost = float(upgrade_costs[0]) if isinstance(upgrade_costs, list) and len(upgrade_costs) else 100.0
-        self.upgrade_system = UpgradeSystem(player_pyramid_eid=self.player_pyramid_eid, base_cost=base_upgrade_cost)
+        # UpgradeSystem avec les coûts de balance.json
+        pyramid_cfg = self.balance.get("pyramid", {})
+        upgrade_costs = pyramid_cfg.get("upgrade_costs", [100, 125, 150, 175, 200])
+        max_level = int(pyramid_cfg.get("level_max", 5))
+        self.upgrade_system = UpgradeSystem(
+            player_pyramid_eid=self.player_pyramid_eid,
+            max_level=max_level,
+            upgrade_costs=upgrade_costs
+        )
 
         self.astar_system = AStarPathfindingSystem(self.nav_grid)
         self.terrain_system = TerrainEffectSystem(self.nav_grid)
