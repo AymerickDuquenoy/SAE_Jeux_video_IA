@@ -27,6 +27,7 @@ from Game.Ecs.Components.grid_position import GridPosition
 from Game.Ecs.Components.projectile import Projectile
 from Game.Ecs.Components.incomeRate import IncomeRate
 from Game.Ecs.Components.pathProgress import PathProgress
+from Game.Ecs.Components.velocity import Velocity
 from Game.Ecs.Components.pyramidLevel import PyramidLevel
 
 from Game.Ecs.Systems.EnemySpawnerSystem import EnemySpawnerSystem
@@ -1402,14 +1403,21 @@ class GameApp:
 
             sx, sy = self._grid_to_screen(t.pos[0], t.pos[1])
             
+            # Vérifier si l'unité bouge
+            is_moving = False
+            if esper.has_component(ent, Velocity):
+                vel = esper.component_for_entity(ent, Velocity)
+                if abs(vel.vx) > 0.01 or abs(vel.vy) > 0.01:
+                    is_moving = True
+            
             # Type d'unité basé sur la puissance
             power = getattr(stats, 'power', 0)
             if power <= 9:
-                sprite_renderer.draw_momie(self.screen, sx, sy, team.id, ratio)
+                sprite_renderer.draw_momie(self.screen, sx, sy, team.id, ratio, is_moving)
             elif power <= 14:
-                sprite_renderer.draw_dromadaire(self.screen, sx, sy, team.id, ratio)
+                sprite_renderer.draw_dromadaire(self.screen, sx, sy, team.id, ratio, is_moving)
             else:
-                sprite_renderer.draw_sphinx(self.screen, sx, sy, team.id, ratio)
+                sprite_renderer.draw_sphinx(self.screen, sx, sy, team.id, ratio, is_moving)
 
         # Dessiner les projectiles
         for ent, (t, p) in esper.get_components(Transform, Projectile):

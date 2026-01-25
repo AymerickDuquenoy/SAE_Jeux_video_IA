@@ -102,10 +102,16 @@ class SpriteRenderer:
         
         return None
     
-    def draw_momie(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0):
-        """Dessine une Momie animée."""
+    def draw_momie(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0, is_moving: bool = True):
+        """Dessine une Momie animée (frame droite si à l'arrêt)."""
         key = f"momie_{team_id}"
-        frame_idx = self._get_current_frame_index()
+        
+        # Frame 1 (droite) si à l'arrêt, sinon animation
+        if is_moving:
+            frame_idx = self._get_current_frame_index()
+        else:
+            frame_idx = 1  # Frame de droite = arrêt
+        
         sprite = self._get_scaled_frame(key, self.momie_size, frame_idx)
         
         if sprite:
@@ -118,10 +124,16 @@ class SpriteRenderer:
         
         self._draw_health_bar(screen, x, y - self.momie_size // 2 - 4, 18, hp_ratio, team_id)
     
-    def draw_dromadaire(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0):
-        """Dessine un Dromadaire animé."""
+    def draw_dromadaire(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0, is_moving: bool = True):
+        """Dessine un Dromadaire animé (frame droite si à l'arrêt)."""
         key = f"dromadaire_{team_id}"
-        frame_idx = self._get_current_frame_index()
+        
+        # Frame 1 (droite) si à l'arrêt, sinon animation
+        if is_moving:
+            frame_idx = self._get_current_frame_index()
+        else:
+            frame_idx = 1  # Frame de droite = arrêt
+        
         sprite = self._get_scaled_frame(key, self.dromadaire_size, frame_idx)
         
         if sprite:
@@ -134,10 +146,16 @@ class SpriteRenderer:
         
         self._draw_health_bar(screen, x, y - self.dromadaire_size // 2 - 4, 22, hp_ratio, team_id)
     
-    def draw_sphinx(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0):
-        """Dessine un Sphinx animé."""
+    def draw_sphinx(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0, is_moving: bool = True):
+        """Dessine un Sphinx animé (frame droite si à l'arrêt)."""
         key = f"sphinx_{team_id}"
-        frame_idx = self._get_current_frame_index()
+        
+        # Frame 1 (droite) si à l'arrêt, sinon animation
+        if is_moving:
+            frame_idx = self._get_current_frame_index()
+        else:
+            frame_idx = 1  # Frame de droite = arrêt
+        
         sprite = self._get_scaled_frame(key, self.sphinx_size, frame_idx)
         
         if sprite:
