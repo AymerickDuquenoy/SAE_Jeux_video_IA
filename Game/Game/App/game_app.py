@@ -244,12 +244,9 @@ class GameApp:
         # Difficulté choisie
         self.selected_difficulty = "medium"  # easy/medium/hard/extreme
 
-        # options (OFF par défaut)
-        self.opt_show_lanes = False
+        # options
         self.opt_show_terrain = False
-        self.opt_show_nav = False
         self.opt_show_paths = False
-        self.opt_show_advhud = False
 
         # ✅ lane sélectionnée (0..2) -> lane2 par défaut
         self.selected_lane_idx = 1
@@ -294,12 +291,9 @@ class GameApp:
         self.btn_pause_options = None
         self.btn_menu = None
 
-        # toggles
-        self.tog_lanes = None
+        # toggle options
         self.tog_terrain = None
-        self.tog_nav = None
         self.tog_paths = None
-        self.tog_advhud = None
 
         # lane selector HUD
         self.lane_btn_rects = []
@@ -409,12 +403,9 @@ class GameApp:
         # charge une map pour l’écran menu (juste visuel)
         self._load_map_for_visual(random.choice(self.map_files))
 
-        # ✅ sécurité : options OFF au boot (au cas où ui.py a un comportement bizarre)
-        self.opt_show_lanes = False
+        # Options au boot
         self.opt_show_terrain = False
-        self.opt_show_nav = False
         self.opt_show_paths = False
-        self.opt_show_advhud = False
 
         # ✅ lane par défaut = 2 au boot
         self.selected_lane_idx = 1
@@ -475,11 +466,9 @@ class GameApp:
         th = 54
         tg = 16
 
-        self.tog_lanes = UIToggle(pygame.Rect(ox, oy + (th + tg) * 0, tw, th), "Afficher les lanes", self.font, self.opt_show_lanes)
-        self.tog_terrain = UIToggle(pygame.Rect(ox, oy + (th + tg) * 1, tw, th), "Afficher terrain (open/dusty/interdit)", self.font, self.opt_show_terrain)
-        self.tog_nav = UIToggle(pygame.Rect(ox, oy + (th + tg) * 2, tw, th), "Debug nav (zones interdites)", self.font, self.opt_show_nav)
-        self.tog_paths = UIToggle(pygame.Rect(ox, oy + (th + tg) * 3, tw, th), "Debug paths (chemins)", self.font, self.opt_show_paths)
-        self.tog_advhud = UIToggle(pygame.Rect(ox, oy + (th + tg) * 4, tw, th), "HUD avancée", self.font, self.opt_show_advhud)
+        # Options de jeu
+        self.tog_terrain = UIToggle(pygame.Rect(ox, oy, tw, th), "Afficher les zones de terrain", self.font, self.opt_show_terrain)
+        self.tog_paths = UIToggle(pygame.Rect(ox, oy + th + tg, tw, th), "Afficher les chemins des unites", self.font, self.opt_show_paths)
 
         # In-game lane buttons (repositionnés sous le nouveau HUD)
         bx = 12
@@ -492,12 +481,9 @@ class GameApp:
             for i in range(3)
         ]
 
-        # sécurité : on resync (au cas où ton ui.py gère différemment)
-        self._sync_toggle_value(self.tog_lanes, self.opt_show_lanes)
+        # sécurité : on resync
         self._sync_toggle_value(self.tog_terrain, self.opt_show_terrain)
-        self._sync_toggle_value(self.tog_nav, self.opt_show_nav)
         self._sync_toggle_value(self.tog_paths, self.opt_show_paths)
-        self._sync_toggle_value(self.tog_advhud, self.opt_show_advhud)
 
     # ----------------------------
     # Map loading
@@ -1581,16 +1567,26 @@ class GameApp:
                     pygame.draw.rect(self.screen, (220, 50, 50), rect, 1)
 
     def _debug_draw_paths(self):
+        """Affiche les chemins de toutes les unités avec des couleurs par équipe."""
         if self.world:
             self.world._activate()
 
-        for ent, (t, path) in esper.get_components(Transform, PathComponent):
+        for ent, (t, path, team) in esper.get_components(Transform, PathComponent, Team):
             if not path.noeuds:
                 continue
 
             pts = [self._grid_to_screen(n.x, n.y) for n in path.noeuds]
             if len(pts) >= 2:
-                pygame.draw.lines(self.screen, (30, 30, 30), False, pts, 2)
+                # Couleur selon l'équipe : bleu/cyan pour joueur, rouge/orange pour ennemi
+                if team.id == 1:
+                    color = (80, 200, 255)  # Cyan pour joueur
+                else:
+                    color = (255, 120, 80)  # Orange pour ennemi
+                
+                pygame.draw.lines(self.screen, color, False, pts, 2)
+                
+                # Point de destination
+                pygame.draw.circle(self.screen, color, pts[-1], 4)
 
     def _draw_entities(self):
         from Game.App.sprite_renderer import sprite_renderer
@@ -2094,12 +2090,8 @@ class GameApp:
     def _open_options(self):
         self.state_return = self.state
         self.state = "options"
-
-        self._sync_toggle_value(self.tog_lanes, self.opt_show_lanes)
         self._sync_toggle_value(self.tog_terrain, self.opt_show_terrain)
-        self._sync_toggle_value(self.tog_nav, self.opt_show_nav)
         self._sync_toggle_value(self.tog_paths, self.opt_show_paths)
-        self._sync_toggle_value(self.tog_advhud, self.opt_show_advhud)
 
     def _open_controls(self):
         self.state_return = self.state
@@ -2217,16 +2209,10 @@ class GameApp:
                     if self.btn_back.handle_event(event):
                         self._return_from_submenu()
 
-                    if self.tog_lanes.handle_event(event):
-                        self.opt_show_lanes = self.tog_lanes.value
                     if self.tog_terrain.handle_event(event):
                         self.opt_show_terrain = self.tog_terrain.value
-                    if self.tog_nav.handle_event(event):
-                        self.opt_show_nav = self.tog_nav.value
                     if self.tog_paths.handle_event(event):
                         self.opt_show_paths = self.tog_paths.value
-                    if self.tog_advhud.handle_event(event):
-                        self.opt_show_advhud = self.tog_advhud.value
 
                 # CONTROLS
                 elif self.state == "controls":
@@ -2326,23 +2312,18 @@ class GameApp:
             if self.state in ("playing", "pause", "game_over") and self.world:
                 self._draw_lane_preview_path()
 
-                if self.opt_show_lanes:
-                    self._draw_lane_paths_all()
-
                 if self.opt_show_terrain:
                     self._draw_terrain_overlay()
-                if self.opt_show_nav:
-                    self._debug_draw_forbidden()
-                if self.opt_show_paths:
-                    self._debug_draw_paths()
 
                 self._draw_entities()
+                
+                # Afficher les chemins des unités (par-dessus les entités)
+                if self.opt_show_paths:
+                    self._debug_draw_paths()
                 
                 # Ne pas dessiner le HUD en pause ou game_over
                 if self.state not in ("pause", "game_over"):
                     self._draw_hud_minimal()
-                    if self.opt_show_advhud:
-                        self._draw_hud_advanced()
                     # Minimap en bas à droite
                     self._draw_minimap()
 
@@ -2449,13 +2430,6 @@ class GameApp:
                 if self.menu_background:
                     self.screen.blit(self.menu_background, (0, 0))
                 
-                # Panneau flouté derrière les toggles
-                panel_x = self.width // 2 - 340
-                panel_y = 115
-                panel_w = 680
-                panel_h = 380
-                self._draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
-                
                 # Titre "Options" stylisé
                 title_color = (222, 205, 163)
                 title_shadow = (80, 60, 40)
@@ -2468,13 +2442,43 @@ class GameApp:
                 title_rect = title_surf.get_rect(center=(self.width // 2, 60))
                 self.screen.blit(title_surf, title_rect)
                 
-                self.btn_back.draw(self.screen)
-
-                self.tog_lanes.draw(self.screen)
+                # Panneau pour les toggles
+                panel_w = 580
+                panel_h = 220
+                panel_x = self.width // 2 - panel_w // 2
+                panel_y = self.height // 2 - panel_h // 2
+                self._draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
+                
+                # Bordure dorée
+                gold_dark = (139, 119, 77)
+                pygame.draw.rect(self.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=10)
+                
+                # Toggle 1 : Zones de terrain
+                toggle_w = 520
+                toggle_h = 50
+                toggle_x = self.width // 2 - toggle_w // 2
+                toggle_y = panel_y + 25
+                
+                self.tog_terrain.rect = pygame.Rect(toggle_x, toggle_y, toggle_w, toggle_h)
                 self.tog_terrain.draw(self.screen)
-                self.tog_nav.draw(self.screen)
+                
+                # Description 1
+                desc1_surf = self.font_small.render("Zones lentes (marron) et interdites (rouge)", True, (160, 155, 140))
+                desc1_rect = desc1_surf.get_rect(centerx=self.width // 2, top=self.tog_terrain.rect.bottom + 5)
+                self.screen.blit(desc1_surf, desc1_rect)
+                
+                # Toggle 2 : Chemins des unités
+                toggle2_y = desc1_rect.bottom + 20
+                
+                self.tog_paths.rect = pygame.Rect(toggle_x, toggle2_y, toggle_w, toggle_h)
                 self.tog_paths.draw(self.screen)
-                self.tog_advhud.draw(self.screen)
+                
+                # Description 2
+                desc2_surf = self.font_small.render("Affiche le trajet de chaque unite", True, (160, 155, 140))
+                desc2_rect = desc2_surf.get_rect(centerx=self.width // 2, top=self.tog_paths.rect.bottom + 5)
+                self.screen.blit(desc2_surf, desc2_rect)
+                
+                self.btn_back.draw(self.screen)
 
             elif self.state == "controls":
                 # Afficher le fond du menu
