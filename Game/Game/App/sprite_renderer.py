@@ -1,152 +1,161 @@
 """
-SpriteRenderer - Rendu stylisé des unités et bâtiments.
+SpriteRenderer - Rendu des unités avec sprites PNG animés.
 
-Génère des sprites procéduraux pour chaque type d'entité :
-- Momie (S): Silhouette bandée
-- Dromadaire (M): Forme de chameau stylisée
-- Sphinx (L): Sphinx égyptien majestueux
-- Pyramide: Pyramide avec détails
+Chaque sprite contient 2 frames côte à côte pour l'animation de marche.
+- Momie (S): momie.png / momie_r.png (600x435 -> 2 frames de 300x435)
+- Dromadaire (M): dromadaire.png / dromadaire_b.png (840x405 -> 2 frames de 420x405)
+- Sphinx (L): sphinx.png / sphinx_b.png (1800x720 -> 2 frames de 900x720)
 """
 import pygame
-import math
+import os
+import time
 
 
 class SpriteRenderer:
-    """Gère le rendu des sprites du jeu."""
+    """Gère le rendu des sprites animés du jeu."""
     
     def __init__(self):
-        self.cache = {}  # Cache des surfaces générées
+        self.cache = {}  # Cache des frames redimensionnées
+        self.sprites_loaded = False
+        self.frames = {}  # Stocke les 2 frames de chaque sprite
         
-    def _get_cache_key(self, sprite_type: str, team_id: int, size: int) -> str:
-        return f"{sprite_type}_{team_id}_{size}"
+        # Tailles d'affichage des sprites
+        self.momie_size = 28
+        self.dromadaire_size = 36
+        self.sphinx_size = 48
+        
+        # Vitesse d'animation (secondes par frame)
+        self.anim_speed = 0.25
+    
+    def _get_sprite_path(self, filename: str) -> str:
+        """Retourne le chemin complet vers un sprite."""
+        base_paths = [
+            os.path.join(os.path.dirname(__file__), "..", "assets", "sprites"),
+            os.path.join(os.path.dirname(__file__), "assets", "sprites"),
+            "Game/assets/sprites",
+            "assets/sprites",
+        ]
+        for base in base_paths:
+            path = os.path.join(base, filename)
+            if os.path.exists(path):
+                return path
+        return None
+    
+    def _load_sprites(self):
+        """Charge et découpe tous les sprites en frames."""
+        if self.sprites_loaded:
+            return
+        
+        sprite_files = {
+            "momie_1": "momie.png",
+            "momie_2": "momie_r.png",
+            "dromadaire_1": "dromadaire.png",
+            "dromadaire_2": "dromadaire_b.png",
+            "sphinx_1": "sphinx.png",
+            "sphinx_2": "sphinx_b.png",
+        }
+        
+        for key, filename in sprite_files.items():
+            path = self._get_sprite_path(filename)
+            if path:
+                try:
+                    img = pygame.image.load(path).convert_alpha()
+                    w, h = img.get_size()
+                    frame_w = w // 2
+                    
+                    # Découper en 2 frames
+                    frame1 = img.subsurface((0, 0, frame_w, h))
+                    frame2 = img.subsurface((frame_w, 0, frame_w, h))
+                    
+                    self.frames[key] = [frame1, frame2]
+                except Exception as e:
+                    print(f"[WARN] Could not load sprite {filename}: {e}")
+                    self.frames[key] = None
+            else:
+                self.frames[key] = None
+        
+        self.sprites_loaded = True
+    
+    def _get_current_frame_index(self) -> int:
+        """Retourne l'index de frame actuel (0 ou 1) basé sur le temps."""
+        return int(time.time() / self.anim_speed) % 2
+    
+    def _get_scaled_frame(self, key: str, size: int, frame_idx: int) -> pygame.Surface:
+        """Retourne une frame redimensionnée (avec cache)."""
+        cache_key = f"{key}_{size}_{frame_idx}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+        
+        self._load_sprites()
+        
+        if key in self.frames and self.frames[key]:
+            original = self.frames[key][frame_idx]
+            # Garder le ratio
+            orig_w, orig_h = original.get_size()
+            ratio = min(size / orig_w, size / orig_h)
+            new_w = int(orig_w * ratio)
+            new_h = int(orig_h * ratio)
+            if new_w > 0 and new_h > 0:
+                scaled = pygame.transform.smoothscale(original, (new_w, new_h))
+                self.cache[cache_key] = scaled
+                return scaled
+        
+        return None
     
     def draw_momie(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0):
-        """Dessine une Momie (petite unité rapide)."""
-        size = 14
-        key = self._get_cache_key("momie", team_id, size)
+        """Dessine une Momie animée."""
+        key = f"momie_{team_id}"
+        frame_idx = self._get_current_frame_index()
+        sprite = self._get_scaled_frame(key, self.momie_size, frame_idx)
         
-        if key not in self.cache:
-            surf = pygame.Surface((size, size), pygame.SRCALPHA)
-            
-            # Couleurs selon équipe
-            if team_id == 1:
-                body_color = (200, 220, 180)  # Bandages beige
-                accent = (100, 180, 120)      # Vert joueur
-            else:
-                body_color = (180, 180, 160)
-                accent = (200, 100, 100)      # Rouge ennemi
-            
-            # Corps (ovale vertical)
-            cx, cy = size // 2, size // 2
-            pygame.draw.ellipse(surf, body_color, (cx - 4, cy - 6, 8, 12))
-            
-            # Bandages horizontaux
-            for i in range(3):
-                yy = cy - 4 + i * 3
-                pygame.draw.line(surf, (150, 150, 130), (cx - 3, yy), (cx + 3, yy), 1)
-            
-            # Yeux brillants
-            pygame.draw.circle(surf, accent, (cx - 2, cy - 3), 2)
-            pygame.draw.circle(surf, accent, (cx + 2, cy - 3), 2)
-            
-            # Contour
-            pygame.draw.ellipse(surf, (60, 60, 50), (cx - 4, cy - 6, 8, 12), 1)
-            
-            self.cache[key] = surf
+        if sprite:
+            sw, sh = sprite.get_size()
+            screen.blit(sprite, (x - sw // 2, y - sh // 2))
+        else:
+            # Fallback: cercle coloré
+            color = (100, 180, 120) if team_id == 1 else (200, 100, 100)
+            pygame.draw.circle(screen, color, (x, y), 7)
         
-        screen.blit(self.cache[key], (x - size // 2, y - size // 2))
-        self._draw_health_bar(screen, x, y - 10, 12, hp_ratio, team_id)
+        self._draw_health_bar(screen, x, y - self.momie_size // 2 - 4, 18, hp_ratio, team_id)
     
     def draw_dromadaire(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0):
-        """Dessine un Dromadaire (unité moyenne tank)."""
-        size = 20
-        key = self._get_cache_key("dromadaire", team_id, size)
+        """Dessine un Dromadaire animé."""
+        key = f"dromadaire_{team_id}"
+        frame_idx = self._get_current_frame_index()
+        sprite = self._get_scaled_frame(key, self.dromadaire_size, frame_idx)
         
-        if key not in self.cache:
-            surf = pygame.Surface((size, size), pygame.SRCALPHA)
-            
-            if team_id == 1:
-                body_color = (180, 150, 100)  # Chameau beige
-                accent = (80, 180, 120)
-            else:
-                body_color = (160, 130, 90)
-                accent = (180, 80, 80)
-            
-            cx, cy = size // 2, size // 2
-            
-            # Corps (ovale horizontal)
-            pygame.draw.ellipse(surf, body_color, (cx - 7, cy - 3, 14, 8))
-            
-            # Bosse
-            pygame.draw.ellipse(surf, body_color, (cx - 2, cy - 6, 6, 5))
-            
-            # Tête
-            pygame.draw.circle(surf, body_color, (cx + 5, cy - 1), 3)
-            
-            # Œil
-            pygame.draw.circle(surf, (40, 40, 40), (cx + 6, cy - 2), 1)
-            
-            # Pattes (lignes)
-            pygame.draw.line(surf, (120, 100, 70), (cx - 4, cy + 4), (cx - 4, cy + 8), 2)
-            pygame.draw.line(surf, (120, 100, 70), (cx + 3, cy + 4), (cx + 3, cy + 8), 2)
-            
-            # Contour coloré selon équipe
-            pygame.draw.ellipse(surf, accent, (cx - 7, cy - 3, 14, 8), 2)
-            
-            self.cache[key] = surf
+        if sprite:
+            sw, sh = sprite.get_size()
+            screen.blit(sprite, (x - sw // 2, y - sh // 2))
+        else:
+            # Fallback: cercle coloré
+            color = (80, 180, 120) if team_id == 1 else (180, 80, 80)
+            pygame.draw.circle(screen, color, (x, y), 10)
         
-        screen.blit(self.cache[key], (x - size // 2, y - size // 2))
-        self._draw_health_bar(screen, x, y - 14, 16, hp_ratio, team_id)
+        self._draw_health_bar(screen, x, y - self.dromadaire_size // 2 - 4, 22, hp_ratio, team_id)
     
     def draw_sphinx(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0):
-        """Dessine un Sphinx (grosse unité siège)."""
-        size = 26
-        key = self._get_cache_key("sphinx", team_id, size)
+        """Dessine un Sphinx animé."""
+        key = f"sphinx_{team_id}"
+        frame_idx = self._get_current_frame_index()
+        sprite = self._get_scaled_frame(key, self.sphinx_size, frame_idx)
         
-        if key not in self.cache:
-            surf = pygame.Surface((size, size), pygame.SRCALPHA)
-            
-            if team_id == 1:
-                body_color = (220, 190, 120)  # Or
-                accent = (60, 160, 100)
-            else:
-                body_color = (200, 170, 100)
-                accent = (180, 60, 60)
-            
-            cx, cy = size // 2, size // 2
-            
-            # Corps du lion (rectangle arrondi)
-            pygame.draw.rect(surf, body_color, (cx - 9, cy - 2, 16, 8), border_radius=3)
-            
-            # Tête humaine
-            pygame.draw.circle(surf, body_color, (cx + 6, cy - 4), 5)
-            
-            # Coiffe égyptienne (triangle)
-            points = [(cx + 6, cy - 9), (cx + 2, cy - 2), (cx + 10, cy - 2)]
-            pygame.draw.polygon(surf, accent, points)
-            
-            # Pattes avant
-            pygame.draw.rect(surf, body_color, (cx - 8, cy + 5, 4, 5))
-            pygame.draw.rect(surf, body_color, (cx + 4, cy + 5, 4, 5))
-            
-            # Visage
-            pygame.draw.circle(surf, (40, 40, 40), (cx + 5, cy - 5), 1)
-            pygame.draw.circle(surf, (40, 40, 40), (cx + 8, cy - 5), 1)
-            
-            # Contour doré
-            pygame.draw.rect(surf, (180, 150, 80), (cx - 9, cy - 2, 16, 8), 1, border_radius=3)
-            
-            self.cache[key] = surf
+        if sprite:
+            sw, sh = sprite.get_size()
+            screen.blit(sprite, (x - sw // 2, y - sh // 2))
+        else:
+            # Fallback: cercle coloré
+            color = (60, 160, 100) if team_id == 1 else (180, 60, 60)
+            pygame.draw.circle(screen, color, (x, y), 13)
         
-        screen.blit(self.cache[key], (x - size // 2, y - size // 2))
-        self._draw_health_bar(screen, x, y - 18, 22, hp_ratio, team_id)
+        self._draw_health_bar(screen, x, y - self.sphinx_size // 2 - 4, 28, hp_ratio, team_id)
     
     def draw_pyramid(self, screen: pygame.Surface, x: int, y: int, team_id: int, 
                      hp_ratio: float = 1.0, level: int = 1):
-        """Dessine une Pyramide."""
+        """Dessine une Pyramide (sprite procédural)."""
         base_size = 28
         size = base_size + level * 2
-        key = self._get_cache_key(f"pyramid_l{level}", team_id, size)
+        key = f"pyramid_l{level}_{team_id}_{size}"
         
         if key not in self.cache:
             surf = pygame.Surface((size + 4, size + 4), pygame.SRCALPHA)
@@ -162,9 +171,9 @@ class SpriteRenderer:
             
             # Triangle principal
             points = [
-                (cx, cy - size // 2),           # Sommet
-                (cx - size // 2, cy + size // 3),  # Bas gauche
-                (cx + size // 2, cy + size // 3)   # Bas droit
+                (cx, cy - size // 2),
+                (cx - size // 2, cy + size // 3),
+                (cx + size // 2, cy + size // 3)
             ]
             pygame.draw.polygon(surf, color1, points)
             
@@ -215,7 +224,6 @@ class SpriteRenderer:
         else:
             color = (255, 150, 150)
         
-        # Projectile avec traînée
         pygame.draw.circle(screen, color, (x, y), 4)
         pygame.draw.circle(screen, (255, 255, 255), (x, y), 2)
     
