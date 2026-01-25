@@ -39,7 +39,6 @@ from Game.Ecs.Components.velocity import Velocity
 from Game.Ecs.Components.pyramidLevel import PyramidLevel
 
 from Game.Ecs.Systems.EnemySpawnerSystem import EnemySpawnerSystem
-from Game.Ecs.Systems.DifficultySystem import DifficultySystem
 
 from Game.Ecs.Systems.LaneRouteSystem import LaneRouteSystem
 from Game.Services.terrain_randomizer import apply_random_terrain
@@ -238,9 +237,12 @@ class GameApp:
         self.camera_y = 0.0
 
         # UI / state machine
-        self.state = "menu"  # menu/options/controls/playing/pause/game_over
+        self.state = "menu"  # menu/options/controls/difficulty_select/playing/pause/game_over
         self.state_return = "menu"
         self.game_over_text = ""
+        
+        # Difficulté choisie
+        self.selected_difficulty = "medium"  # easy/medium/hard/extreme
 
         # options (OFF par défaut)
         self.opt_show_lanes = False
@@ -457,6 +459,15 @@ class GameApp:
         self.btn_restart = UIButton(pygame.Rect(cx - w // 2, cy, w, h), "Recommencer", self.font)
         self.btn_pause_options = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 1, w, h), "Options", self.font)
         self.btn_menu = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 2, w, h), "Menu", self.font)
+
+        # Boutons de sélection de difficulté
+        diff_y = cy - 60
+        diff_h = 50
+        diff_gap = 12
+        self.btn_diff_easy = UIMenuButton(pygame.Rect(cx - w // 2, diff_y, w, diff_h), "Facile", self.font)
+        self.btn_diff_medium = UIMenuButton(pygame.Rect(cx - w // 2, diff_y + (diff_h + diff_gap), w, diff_h), "Moyen", self.font)
+        self.btn_diff_hard = UIMenuButton(pygame.Rect(cx - w // 2, diff_y + (diff_h + diff_gap) * 2, w, diff_h), "Difficile", self.font)
+        self.btn_diff_extreme = UIMenuButton(pygame.Rect(cx - w // 2, diff_y + (diff_h + diff_gap) * 3, w, diff_h), "Extreme", self.font)
 
         ox = cx - 320
         oy = 130
@@ -1177,16 +1188,10 @@ class GameApp:
             pyramid_ids=pyramid_ids
         )
 
-        # ✅ DIFFICULTY + ENEMY SPAWNER
-        try:
-            self.difficulty_system = DifficultySystem(self.balance)
-        except TypeError:
-            try:
-                self.difficulty_system = DifficultySystem()
-            except Exception:
-                self.difficulty_system = None
+        # ✅ Plus de DifficultySystem dynamique - la difficulté est choisie au menu
+        self.difficulty_system = None
 
-        # ✅ FIX: Créer EnemySpawnerSystem TOUJOURS (indépendamment de difficulty)
+        # ✅ EnemySpawnerSystem avec la difficulté choisie
         self.enemy_spawner_system = None
         try:
             self.enemy_spawner_system = EnemySpawnerSystem(
@@ -1196,8 +1201,9 @@ class GameApp:
                 self.enemy_pyramid_eid,
                 self.nav_grid,
                 lanes_y=self.lanes_y,
+                difficulty=self.selected_difficulty,
             )
-            print("[OK] EnemySpawnerSystem created")
+            print(f"[OK] EnemySpawnerSystem created (difficulty: {self.selected_difficulty})")
         except Exception as e:
             print(f"[WARN] EnemySpawnerSystem failed: {e}")
             self.enemy_spawner_system = None
@@ -1961,10 +1967,10 @@ class GameApp:
         )
         l2 = self.font_small.render(f"Temps: {self.match_time:.1f}s | Kills: {self.enemy_kills}", True, (230, 230, 230))
         
-        # ✅ Afficher niveau de difficulté
+        # ✅ Afficher infos IA ennemie
         diff_txt = ""
-        if self.difficulty_system:
-            diff_txt = self.difficulty_system.hud_line()
+        if self.enemy_spawner_system:
+            diff_txt = self.enemy_spawner_system.hud_line()
         l3 = self.font_small.render(diff_txt, True, (255, 200, 100))
         
         self.screen.blit(l1, (x, y))
@@ -2096,6 +2102,12 @@ class GameApp:
     def _return_from_submenu(self):
         self.state = self.state_return if self.state_return else "menu"
 
+    def _start_game_with_difficulty(self):
+        """Démarre une partie avec la difficulté sélectionnée."""
+        self._teardown_match()
+        self._setup_match()
+        self.state = "playing"
+
     # ----------------------------
     # Stats
     # ----------------------------
@@ -2162,9 +2174,7 @@ class GameApp:
                 # MENU
                 if self.state == "menu":
                     if self.btn_play.handle_event(event):
-                        self._teardown_match()
-                        self._setup_match()
-                        self.state = "playing"
+                        self.state = "difficulty_select"
 
                     if self.btn_options.handle_event(event):
                         self._open_options()
@@ -2174,6 +2184,27 @@ class GameApp:
 
                     if self.btn_quit.handle_event(event):
                         self.running = False
+
+                # DIFFICULTY SELECT
+                elif self.state == "difficulty_select":
+                    if self.btn_back.handle_event(event):
+                        self.state = "menu"
+                    
+                    if self.btn_diff_easy.handle_event(event):
+                        self.selected_difficulty = "easy"
+                        self._start_game_with_difficulty()
+                    
+                    if self.btn_diff_medium.handle_event(event):
+                        self.selected_difficulty = "medium"
+                        self._start_game_with_difficulty()
+                    
+                    if self.btn_diff_hard.handle_event(event):
+                        self.selected_difficulty = "hard"
+                        self._start_game_with_difficulty()
+                    
+                    if self.btn_diff_extreme.handle_event(event):
+                        self.selected_difficulty = "extreme"
+                        self._start_game_with_difficulty()
 
                 # OPTIONS
                 elif self.state == "options":
@@ -2349,6 +2380,67 @@ class GameApp:
                 self.btn_options.draw(self.screen)
                 self.btn_controls.draw(self.screen)
                 self.btn_quit.draw(self.screen)
+
+            elif self.state == "difficulty_select":
+                # Afficher le fond du menu
+                if self.menu_background:
+                    self.screen.blit(self.menu_background, (0, 0))
+                
+                # Panneau flouté derrière les boutons
+                panel_w, panel_h = 400, 380
+                panel_x = self.width // 2 - panel_w // 2
+                panel_y = self.height // 2 - panel_h // 2
+                self._draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
+                
+                # Titre "Difficulte" stylisé
+                title_color = (222, 205, 163)
+                title_shadow = (80, 60, 40)
+                
+                title_surf = self.font_title.render("Difficulte", True, title_shadow)
+                title_rect = title_surf.get_rect(center=(self.width // 2 + 3, 63))
+                self.screen.blit(title_surf, title_rect)
+                
+                title_surf = self.font_title.render("Difficulte", True, title_color)
+                title_rect = title_surf.get_rect(center=(self.width // 2, 60))
+                self.screen.blit(title_surf, title_rect)
+                
+                # Sous-titre explicatif
+                sub_surf = self.font_small.render("Choisissez le niveau de difficulte", True, (180, 170, 150))
+                sub_rect = sub_surf.get_rect(center=(self.width // 2, 100))
+                self.screen.blit(sub_surf, sub_rect)
+                
+                # Descriptions des difficultés
+                diff_y = self.height // 2 - 60
+                diff_h = 50
+                diff_gap = 12
+                
+                descriptions = {
+                    "easy": "Revenus ennemi x0.5",
+                    "medium": "Revenus ennemi x1.0", 
+                    "hard": "Revenus ennemi x1.5",
+                    "extreme": "Revenus ennemi x2.0",
+                }
+                
+                # Boutons avec description à côté
+                self.btn_diff_easy.rect.y = diff_y
+                self.btn_diff_medium.rect.y = diff_y + (diff_h + diff_gap)
+                self.btn_diff_hard.rect.y = diff_y + (diff_h + diff_gap) * 2
+                self.btn_diff_extreme.rect.y = diff_y + (diff_h + diff_gap) * 3
+                
+                self.btn_diff_easy.draw(self.screen)
+                self.btn_diff_medium.draw(self.screen)
+                self.btn_diff_hard.draw(self.screen)
+                self.btn_diff_extreme.draw(self.screen)
+                
+                # Descriptions à droite
+                desc_x = self.width // 2 + 130
+                for i, (key, desc) in enumerate(descriptions.items()):
+                    y = diff_y + (diff_h + diff_gap) * i + 15
+                    color = (150, 200, 150) if key == "easy" else (200, 200, 150) if key == "medium" else (200, 150, 100) if key == "hard" else (255, 100, 100)
+                    desc_surf = self.font_small.render(desc, True, color)
+                    self.screen.blit(desc_surf, (desc_x, y))
+                
+                self.btn_back.draw(self.screen)
 
             elif self.state == "options":
                 # Afficher le fond du menu
@@ -2533,10 +2625,11 @@ class GameApp:
                 self.screen.blit(value2, (panel_x + panel_w - 40 - value2.get_width(), stats_y))
                 stats_y += line_h
                 
-                # Niveau de difficulté
-                diff_level = self.difficulty_system.level if self.difficulty_system else 1
-                label3 = self.font.render("Niveau difficulte:", True, (180, 170, 150))
-                value3 = self.font.render(f"{diff_level}", True, text_gold)
+                # Difficulté choisie
+                diff_names = {"easy": "Facile", "medium": "Moyen", "hard": "Difficile", "extreme": "Extreme"}
+                diff_name = diff_names.get(self.selected_difficulty, "Moyen")
+                label3 = self.font.render("Difficulte:", True, (180, 170, 150))
+                value3 = self.font.render(diff_name, True, text_gold)
                 self.screen.blit(label3, (stats_x, stats_y))
                 self.screen.blit(value3, (panel_x + panel_w - 40 - value3.get_width(), stats_y))
                 stats_y += line_h + 5
