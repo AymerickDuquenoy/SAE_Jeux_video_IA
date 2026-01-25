@@ -2300,12 +2300,14 @@ class GameApp:
                     self._debug_draw_paths()
 
                 self._draw_entities()
-                self._draw_hud_minimal()
-                if self.opt_show_advhud:
-                    self._draw_hud_advanced()
                 
-                # Minimap en bas à droite
-                self._draw_minimap()
+                # Ne pas dessiner le HUD en game_over
+                if self.state != "game_over":
+                    self._draw_hud_minimal()
+                    if self.opt_show_advhud:
+                        self._draw_hud_advanced()
+                    # Minimap en bas à droite
+                    self._draw_minimap()
 
             if self.state == "menu":
                 # Afficher l'image de fond du menu
@@ -2425,59 +2427,107 @@ class GameApp:
                 self.btn_menu.draw(self.screen)
 
             elif self.state == "game_over":
-                # Titre victoire/défaite avec couleur
-                title_color = (80, 255, 140) if self.game_over_text == "VICTORY" else (255, 100, 100)
-                title_surf = self.font_big.render(self.game_over_text, True, title_color)
-                title_rect = title_surf.get_rect(center=(self.width // 2, self.height // 2 - 140))
+                # Fond semi-transparent couvrant tout l'écran
+                overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                overlay.fill((15, 12, 8, 200))
+                self.screen.blit(overlay, (0, 0))
+                
+                # Couleurs égyptiennes
+                gold_dark = (139, 119, 77)
+                gold_light = (179, 156, 101)
+                text_gold = (222, 205, 163)
+                bg_dark = (45, 38, 30)
+                
+                # Panneau principal centré
+                panel_w, panel_h = 420, 320
+                panel_x = self.width // 2 - panel_w // 2
+                panel_y = self.height // 2 - panel_h // 2 - 20
+                
+                # Fond du panneau
+                panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+                panel_surf.fill((bg_dark[0], bg_dark[1], bg_dark[2], 245))
+                self.screen.blit(panel_surf, (panel_x, panel_y))
+                
+                # Bordures dorées doubles
+                pygame.draw.rect(self.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 4, border_radius=12)
+                pygame.draw.rect(self.screen, gold_light, (panel_x + 6, panel_y + 6, panel_w - 12, panel_h - 12), 2, border_radius=10)
+                
+                # Titre VICTOIRE / DEFAITE
+                is_victory = self.game_over_text == "VICTORY"
+                title_color = (100, 255, 150) if is_victory else (255, 100, 100)
+                title_text = "VICTOIRE" if is_victory else "DEFAITE"
+                
+                title_surf = self.font_big.render(title_text, True, title_color)
+                title_rect = title_surf.get_rect(centerx=self.width // 2, top=panel_y + 25)
                 self.screen.blit(title_surf, title_rect)
                 
-                # Panel de stats
-                self._draw_panel(self.width // 2 - 220, self.height // 2 - 100, 440, 180, alpha=140)
+                # Ligne séparatrice
+                sep_y = panel_y + 75
+                pygame.draw.line(self.screen, gold_light, (panel_x + 30, sep_y), (panel_x + panel_w - 30, sep_y), 2)
                 
-                # Statistiques détaillées
-                stats_x = self.width // 2 - 200
-                stats_y = self.height // 2 - 85
-                line_h = 26
+                # Statistiques
+                stats_x = panel_x + 40
+                stats_y = panel_y + 95
+                line_h = 36
                 
                 # Temps de jeu
-                time_txt = f"⏱️ Temps de jeu: {self.match_time:.1f}s"
-                s1 = self.font.render(time_txt, True, (240, 240, 240))
-                self.screen.blit(s1, (stats_x, stats_y))
+                label1 = self.font.render("Temps de jeu:", True, (180, 170, 150))
+                value1 = self.font.render(f"{self.match_time:.1f}s", True, text_gold)
+                self.screen.blit(label1, (stats_x, stats_y))
+                self.screen.blit(value1, (panel_x + panel_w - 40 - value1.get_width(), stats_y))
                 stats_y += line_h
                 
-                # Kills
-                kills_txt = f"💀 Ennemis éliminés: {self.enemy_kills}"
-                s2 = self.font.render(kills_txt, True, (240, 240, 240))
-                self.screen.blit(s2, (stats_x, stats_y))
+                # Ennemis éliminés
+                label2 = self.font.render("Ennemis elimines:", True, (180, 170, 150))
+                value2 = self.font.render(f"{self.enemy_kills}", True, text_gold)
+                self.screen.blit(label2, (stats_x, stats_y))
+                self.screen.blit(value2, (panel_x + panel_w - 40 - value2.get_width(), stats_y))
                 stats_y += line_h
                 
-                # Niveau de difficulté atteint
-                diff_level = 1
-                if self.difficulty_system:
-                    diff_level = self.difficulty_system.level
-                diff_txt = f"📈 Niveau difficulté: {diff_level}"
-                s3 = self.font.render(diff_txt, True, (240, 240, 240))
-                self.screen.blit(s3, (stats_x, stats_y))
-                stats_y += line_h
-                
-                # Score (basé sur temps + kills)
-                score = int(self.match_time * 10 + self.enemy_kills * 50)
-                score_txt = f"⭐ Score: {score}"
-                s4 = self.font.render(score_txt, True, (255, 220, 100))
-                self.screen.blit(s4, (stats_x, stats_y))
+                # Niveau de difficulté
+                diff_level = self.difficulty_system.level if self.difficulty_system else 1
+                label3 = self.font.render("Niveau difficulte:", True, (180, 170, 150))
+                value3 = self.font.render(f"{diff_level}", True, text_gold)
+                self.screen.blit(label3, (stats_x, stats_y))
+                self.screen.blit(value3, (panel_x + panel_w - 40 - value3.get_width(), stats_y))
                 stats_y += line_h + 5
                 
+                # Ligne séparatrice score
+                pygame.draw.line(self.screen, gold_dark, (panel_x + 30, stats_y - 5), (panel_x + panel_w - 30, stats_y - 5), 1)
+                stats_y += 5
+                
+                # Score (mise en valeur)
+                score = int(self.match_time * 10 + self.enemy_kills * 50)
+                label4 = self.font.render("Score:", True, (255, 220, 100))
+                value4 = self.font_big.render(f"{score}", True, (255, 220, 100))
+                self.screen.blit(label4, (stats_x, stats_y + 5))
+                self.screen.blit(value4, (panel_x + panel_w - 40 - value4.get_width(), stats_y))
+                stats_y += 50
+                
                 # Records
-                record_txt = f"🏆 Records: {self.best_time:.1f}s | {self.best_kills} kills"
-                s5 = self.font_small.render(record_txt, True, (200, 200, 200))
-                self.screen.blit(s5, (stats_x, stats_y))
+                record_txt = f"Record: {self.best_time:.1f}s  |  Meilleur kills: {self.best_kills}"
+                record_surf = self.font_small.render(record_txt, True, (150, 145, 135))
+                record_rect = record_surf.get_rect(centerx=self.width // 2, top=stats_y)
+                self.screen.blit(record_surf, record_rect)
                 
                 # Nouveau record?
                 if self.match_time >= self.best_time or self.enemy_kills >= self.best_kills:
-                    new_rec = self.font.render("🎉 NOUVEAU RECORD!", True, (255, 220, 80))
-                    rec_rect = new_rec.get_rect(center=(self.width // 2, self.height // 2 + 65))
+                    stats_y += 28
+                    new_rec = self.font.render("NOUVEAU RECORD!", True, (255, 220, 80))
+                    rec_rect = new_rec.get_rect(centerx=self.width // 2, top=stats_y)
+                    # Fond pour le texte
+                    bg_rect = rec_rect.inflate(24, 10)
+                    pygame.draw.rect(self.screen, (80, 60, 30), bg_rect, border_radius=6)
+                    pygame.draw.rect(self.screen, gold_light, bg_rect, 2, border_radius=6)
                     self.screen.blit(new_rec, rec_rect)
 
+                # Repositionner les boutons
+                btn_w, btn_h = 180, 45
+                btn_y = panel_y + panel_h + 25
+                
+                self.btn_restart.rect = pygame.Rect(self.width // 2 - btn_w // 2, btn_y, btn_w, btn_h)
+                self.btn_menu.rect = pygame.Rect(self.width // 2 - btn_w // 2, btn_y + btn_h + 15, btn_w, btn_h)
+                
                 self.btn_restart.draw(self.screen)
                 self.btn_menu.draw(self.screen)
 
