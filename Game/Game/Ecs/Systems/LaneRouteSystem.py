@@ -9,6 +9,7 @@ from Game.Ecs.Components.team import Team
 from Game.Ecs.Components.path import Path as PathComponent
 from Game.Ecs.Components.grid_position import GridPosition
 from Game.Ecs.Components.pathProgress import PathProgress
+from Game.Ecs.Components.lane import Lane
 
 
 class LaneRouteSystem:
@@ -42,13 +43,26 @@ class LaneRouteSystem:
         self.lane_by_ent[int(ent)] = lane_idx
         self.stage_by_ent[int(ent)] = 0
         self.goal_by_ent[int(ent)] = None
+        
+        # CORRECTION: Mettre à jour le composant Lane
+        lane_y = float(self.lanes_y[lane_idx])
+        try:
+            if esper.has_component(ent, Lane):
+                lc = esper.component_for_entity(ent, Lane)
+                lc.index = lane_idx
+                lc.y_position = lane_y
+            else:
+                esper.add_component(ent, Lane(index=lane_idx, y_position=lane_y))
+        except:
+            pass
+        
         try:
             p = esper.component_for_entity(ent, PathComponent)
             p.noeuds = []
         except Exception:
             pass
 
-        # ✅ reset index au changement lane (évite "décalage fin de chemin")
+        # reset index au changement lane
         try:
             prog = esper.component_for_entity(ent, PathProgress)
             prog.index = 0
@@ -184,7 +198,17 @@ class LaneRouteSystem:
                 continue
 
             if ent not in self.lane_by_ent:
-                self.lane_by_ent[ent] = self._closest_lane_idx(int(round(t.pos[1])))
+                # Vérifier si un composant Lane existe déjà (assigné par EnemySpawnerSystem ou InputSystem)
+                if esper.has_component(ent, Lane):
+                    lc = esper.component_for_entity(ent, Lane)
+                    lane_idx = lc.index
+                else:
+                    # Sinon, assigner basé sur la position Y
+                    lane_idx = self._closest_lane_idx(int(round(t.pos[1])))
+                    lane_y = float(self.lanes_y[lane_idx])
+                    esper.add_component(ent, Lane(index=lane_idx, y_position=lane_y))
+                
+                self.lane_by_ent[ent] = lane_idx
                 self.stage_by_ent[ent] = 0
                 self.goal_by_ent[ent] = None
 

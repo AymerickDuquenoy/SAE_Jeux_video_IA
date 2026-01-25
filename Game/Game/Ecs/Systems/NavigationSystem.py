@@ -75,9 +75,26 @@ class NavigationSystem(esper.Processor):
                     if esper.entity_exists(tid):
                         try:
                             th = esper.component_for_entity(tid, Health)
+                            tt = esper.component_for_entity(tid, Transform)
                             if not th.is_dead:
-                                # Troupe ennemie vivante → s'arrêter pour combattre
-                                should_stop_for_combat = True
+                                ax, ay = transform.pos
+                                bx, by = tt.pos
+                                dx = bx - ax
+                                dy = by - ay
+                                dist = math.hypot(dx, dy)
+                                
+                                # Alignement axial (tolérance 0.5 comme CombatSystem)
+                                aligned_h = abs(dy) <= 0.5  # Même Y
+                                aligned_v = abs(dx) <= 0.5  # Même X
+                                aligned = aligned_h or aligned_v
+                                
+                                # S'arrêter SI:
+                                # 1. À portée ET aligné → peut tirer
+                                # 2. Très proche (< 0.5) → évite de passer à travers
+                                if dist <= 1.8 and aligned:
+                                    should_stop_for_combat = True
+                                elif dist <= 0.5:
+                                    should_stop_for_combat = True
                         except:
                             pass
 

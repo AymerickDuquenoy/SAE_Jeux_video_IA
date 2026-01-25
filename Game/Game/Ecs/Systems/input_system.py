@@ -9,6 +9,7 @@ from Game.Ecs.Components.speed import Speed
 from Game.Ecs.Components.wallet import Wallet
 from Game.Ecs.Components.path import Path
 from Game.Ecs.Components.pathProgress import PathProgress
+from Game.Ecs.Components.lane import Lane
 
 
 class InputSystem(esper.Processor):
@@ -138,6 +139,10 @@ class InputSystem(esper.Processor):
             esper.add_component(ent, Path([]))
         if not esper.has_component(ent, PathProgress):
             esper.add_component(ent, PathProgress(index=0))
+        
+        # CORRECTION: Assigner le composant Lane avec la lane sélectionnée
+        lane_y = float(self.lanes_y[self.selected_lane]) if self.lanes_y else 0.0
+        esper.add_component(ent, Lane(index=self.selected_lane, y_position=lane_y))
 
         self.last_message = f"Spawn {unit_key} in lane {self.selected_lane + 1}"
 

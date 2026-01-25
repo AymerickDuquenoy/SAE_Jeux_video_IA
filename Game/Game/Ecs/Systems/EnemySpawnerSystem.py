@@ -7,6 +7,7 @@ from Game.Ecs.Components.wallet import Wallet
 from Game.Ecs.Components.team import Team
 from Game.Ecs.Components.path import Path
 from Game.Ecs.Components.pathProgress import PathProgress
+from Game.Ecs.Components.lane import Lane
 
 
 class EnemySpawnerSystem(esper.Processor):
@@ -194,6 +195,10 @@ class EnemySpawnerSystem(esper.Processor):
             esper.add_component(ent, Path([]))
         if not esper.has_component(ent, PathProgress):
             esper.add_component(ent, PathProgress(index=0))
+        
+        # CORRECTION: Assigner le composant Lane avec l'index choisi
+        # Cela garantit que l'ennemi reste sur la bonne lane même si spawn décalé
+        esper.add_component(ent, Lane(index=lane_idx, y_position=float(lane_y)))
 
         try:
             team = esper.component_for_entity(ent, Team)
