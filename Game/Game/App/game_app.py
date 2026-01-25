@@ -2386,13 +2386,7 @@ class GameApp:
                 if self.menu_background:
                     self.screen.blit(self.menu_background, (0, 0))
                 
-                # Panneau flouté derrière les boutons
-                panel_w, panel_h = 400, 380
-                panel_x = self.width // 2 - panel_w // 2
-                panel_y = self.height // 2 - panel_h // 2
-                self._draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
-                
-                # Titre "Difficulte" stylisé
+                # Titre "Difficulte" en haut de l'écran (comme les autres menus)
                 title_color = (222, 205, 163)
                 title_shadow = (80, 60, 40)
                 
@@ -2404,41 +2398,43 @@ class GameApp:
                 title_rect = title_surf.get_rect(center=(self.width // 2, 60))
                 self.screen.blit(title_surf, title_rect)
                 
-                # Sous-titre explicatif
-                sub_surf = self.font_small.render("Choisissez le niveau de difficulte", True, (180, 170, 150))
-                sub_rect = sub_surf.get_rect(center=(self.width // 2, 100))
-                self.screen.blit(sub_surf, sub_rect)
+                # Panneau pour les boutons uniquement
+                panel_w, panel_h = 360, 380
+                panel_x = self.width // 2 - panel_w // 2
+                panel_y = self.height // 2 - panel_h // 2 + 30
+                self._draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
                 
-                # Descriptions des difficultés
-                diff_y = self.height // 2 - 60
-                diff_h = 50
-                diff_gap = 12
+                # Bordure dorée
+                gold_dark = (139, 119, 77)
+                pygame.draw.rect(self.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=10)
                 
-                descriptions = {
-                    "easy": "Revenus ennemi x0.5",
-                    "medium": "Revenus ennemi x1.0", 
-                    "hard": "Revenus ennemi x1.5",
-                    "extreme": "Revenus ennemi x2.0",
-                }
+                # Configuration des boutons
+                btn_w = 260
+                btn_h = 45
+                btn_x = self.width // 2 - btn_w // 2
+                btn_y_start = panel_y + 25
+                btn_gap = 85
                 
-                # Boutons avec description à côté
-                self.btn_diff_easy.rect.y = diff_y
-                self.btn_diff_medium.rect.y = diff_y + (diff_h + diff_gap)
-                self.btn_diff_hard.rect.y = diff_y + (diff_h + diff_gap) * 2
-                self.btn_diff_extreme.rect.y = diff_y + (diff_h + diff_gap) * 3
+                # Données des difficultés
+                diff_data = [
+                    ("easy", "Facile", "Revenus ennemi x0.5", (100, 200, 100)),
+                    ("medium", "Moyen", "Revenus ennemi x1.0", (200, 200, 100)),
+                    ("hard", "Difficile", "Revenus ennemi x1.5", (255, 180, 80)),
+                    ("extreme", "Extreme", "Revenus ennemi x2.0", (255, 100, 100)),
+                ]
                 
-                self.btn_diff_easy.draw(self.screen)
-                self.btn_diff_medium.draw(self.screen)
-                self.btn_diff_hard.draw(self.screen)
-                self.btn_diff_extreme.draw(self.screen)
+                buttons = [self.btn_diff_easy, self.btn_diff_medium, self.btn_diff_hard, self.btn_diff_extreme]
                 
-                # Descriptions à droite
-                desc_x = self.width // 2 + 130
-                for i, (key, desc) in enumerate(descriptions.items()):
-                    y = diff_y + (diff_h + diff_gap) * i + 15
-                    color = (150, 200, 150) if key == "easy" else (200, 200, 150) if key == "medium" else (200, 150, 100) if key == "hard" else (255, 100, 100)
+                for i, (key, label, desc, color) in enumerate(diff_data):
+                    btn = buttons[i]
+                    btn.rect = pygame.Rect(btn_x, btn_y_start + i * btn_gap, btn_w, btn_h)
+                    btn.text = label
+                    btn.draw(self.screen)
+                    
+                    # Description en dessous du bouton
                     desc_surf = self.font_small.render(desc, True, color)
-                    self.screen.blit(desc_surf, (desc_x, y))
+                    desc_rect = desc_surf.get_rect(centerx=self.width // 2, top=btn.rect.bottom + 5)
+                    self.screen.blit(desc_surf, desc_rect)
                 
                 self.btn_back.draw(self.screen)
 
