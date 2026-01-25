@@ -18,11 +18,21 @@ class SpriteRenderer:
         self.cache = {}  # Cache des frames redimensionnées
         self.sprites_loaded = False
         self.frames = {}  # Stocke les 2 frames de chaque sprite
+        self.pyramid_sprites = {}  # Stocke les sprites des pyramides par level et team
         
         # Tailles d'affichage des sprites
         self.momie_size = 28
         self.dromadaire_size = 36
         self.sphinx_size = 48
+        
+        # Tailles des pyramides par niveau (agrandissent avec le niveau)
+        self.pyramid_sizes = {
+            1: 45,
+            2: 55,
+            3: 70,
+            4: 85,
+            5: 100
+        }
         
         # Vitesse d'animation (secondes par frame)
         self.anim_speed = 0.25
@@ -46,6 +56,7 @@ class SpriteRenderer:
         if self.sprites_loaded:
             return
         
+        # Sprites des unités (2 frames chacun)
         sprite_files = {
             "momie_1": "momie.png",
             "momie_2": "momie_r.png",
@@ -73,6 +84,24 @@ class SpriteRenderer:
                     self.frames[key] = None
             else:
                 self.frames[key] = None
+        
+        # Sprites des pyramides (5 niveaux × 2 équipes)
+        for level in range(1, 6):
+            for team_id, team_name in [(1, "player"), (2, "enemy")]:
+                filename = f"pyramid_{team_name}_{level}.png"
+                path = self._get_sprite_path(filename)
+                key = f"pyramid_{team_id}_{level}"
+                
+                if path:
+                    try:
+                        img = pygame.image.load(path).convert_alpha()
+                        self.pyramid_sprites[key] = img
+                        print(f"[OK] Loaded {filename}")
+                    except Exception as e:
+                        print(f"[WARN] Could not load pyramid sprite {filename}: {e}")
+                        self.pyramid_sprites[key] = None
+                else:
+                    self.pyramid_sprites[key] = None
         
         self.sprites_loaded = True
     
@@ -170,20 +199,70 @@ class SpriteRenderer:
     
     def draw_pyramid(self, screen: pygame.Surface, x: int, y: int, team_id: int, 
                      hp_ratio: float = 1.0, level: int = 1):
-        """Dessine une Pyramide (sprite procédural)."""
+        """Dessine une Pyramide avec sprite PNG."""
+        self._load_sprites()
+        
+        # Limiter le niveau entre 1 et 5
+        level = max(1, min(5, level))
+        
+        # Taille d'affichage selon le niveau
+        display_size = self.pyramid_sizes.get(level, 60)
+        
+        # Clé du sprite
+        sprite_key = f"pyramid_{team_id}_{level}"
+        cache_key = f"pyramid_scaled_{team_id}_{level}_{display_size}"
+        
+        # Vérifier si le sprite existe
+        sprite = self.pyramid_sprites.get(sprite_key)
+        
+        if sprite:
+            # Redimensionner et mettre en cache si nécessaire
+            if cache_key not in self.cache:
+                orig_w, orig_h = sprite.get_size()
+                # Garder les proportions
+                scale = display_size / max(orig_w, orig_h)
+                new_w = int(orig_w * scale)
+                new_h = int(orig_h * scale)
+                scaled = pygame.transform.smoothscale(sprite, (new_w, new_h))
+                self.cache[cache_key] = scaled
+            
+            scaled_sprite = self.cache[cache_key]
+            sw, sh = scaled_sprite.get_size()
+            
+            # Dessiner le sprite centré sur la position
+            screen.blit(scaled_sprite, (x - sw // 2, y - sh // 2))
+            
+            # Barre de vie sous la pyramide
+            bar_w = display_size
+            bar_h = 6
+            bar_x = x - bar_w // 2
+            bar_y = y + sh // 2 + 5
+            
+            pygame.draw.rect(screen, (40, 40, 40), (bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2))
+            pygame.draw.rect(screen, (60, 60, 60), (bar_x, bar_y, bar_w, bar_h))
+            
+            hp_color = (80, 220, 140) if team_id == 1 else (240, 100, 100)
+            pygame.draw.rect(screen, hp_color, (bar_x, bar_y, int(bar_w * hp_ratio), bar_h))
+        else:
+            # Fallback: dessin procédural si sprite non trouvé
+            self._draw_pyramid_fallback(screen, x, y, team_id, hp_ratio, level)
+    
+    def _draw_pyramid_fallback(self, screen: pygame.Surface, x: int, y: int, 
+                                team_id: int, hp_ratio: float, level: int):
+        """Dessine une pyramide procédurale (fallback si sprite manquant)."""
         base_size = 28
-        size = base_size + level * 2
-        key = f"pyramid_l{level}_{team_id}_{size}"
+        size = base_size + level * 6
+        key = f"pyramid_fallback_l{level}_{team_id}_{size}"
         
         if key not in self.cache:
             surf = pygame.Surface((size + 4, size + 4), pygame.SRCALPHA)
             
             if team_id == 1:
-                color1 = (80, 180, 120)   # Vert joueur
-                color2 = (60, 140, 90)
+                color1 = (220, 180, 80)   # Doré joueur
+                color2 = (180, 140, 60)
             else:
-                color1 = (200, 90, 90)    # Rouge ennemi
-                color2 = (160, 70, 70)
+                color1 = (200, 90, 70)    # Rouge ennemi
+                color2 = (160, 70, 50)
             
             cx, cy = (size + 4) // 2, (size + 4) // 2
             
@@ -194,40 +273,18 @@ class SpriteRenderer:
                 (cx + size // 2, cy + size // 3)
             ]
             pygame.draw.polygon(surf, color1, points)
-            
-            # Face ombrée
-            shadow_points = [
-                (cx, cy - size // 2),
-                (cx + size // 2, cy + size // 3),
-                (cx, cy + size // 3 - 5)
-            ]
-            pygame.draw.polygon(surf, color2, shadow_points)
-            
-            # Lignes de briques
-            for i in range(1, level + 2):
-                yy = cy - size // 2 + i * (size // (level + 3))
-                half_w = (i * size // (level + 4))
-                pygame.draw.line(surf, (40, 40, 40), 
-                               (cx - half_w, yy), (cx + half_w, yy), 1)
-            
-            # Contour
+            pygame.draw.polygon(surf, color2, [points[0], points[2], (cx, cy)])
             pygame.draw.polygon(surf, (40, 40, 40), points, 2)
-            
-            # Étoile niveau (si level > 1)
-            if level > 1:
-                for i in range(level - 1):
-                    star_x = cx - (level - 2) * 4 + i * 8
-                    pygame.draw.circle(surf, (255, 220, 100), (star_x, cy + size // 3 - 8), 2)
             
             self.cache[key] = surf
         
         screen.blit(self.cache[key], (x - (size + 4) // 2, y - (size + 4) // 2))
         
-        # Barre de vie plus grande pour pyramide
+        # Barre de vie
         bar_w = size
         bar_h = 5
         bar_x = x - bar_w // 2
-        bar_y = y - size // 2 - 10
+        bar_y = y + size // 3 + 10
         
         pygame.draw.rect(screen, (40, 40, 40), (bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2))
         pygame.draw.rect(screen, (60, 60, 60), (bar_x, bar_y, bar_w, bar_h))

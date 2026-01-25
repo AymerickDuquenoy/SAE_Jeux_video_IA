@@ -8,6 +8,7 @@ from Game.Ecs.Components.health import Health
 from Game.Ecs.Components.wallet import Wallet
 from Game.Ecs.Components.unitStats import UnitStats
 from Game.Ecs.Components.speed import Speed
+from Game.Ecs.Components.pyramidLevel import PyramidLevel
 
 
 class EntityFactory:
@@ -91,6 +92,7 @@ class EntityFactory:
             Transform(pos=(float(gx), float(gy))),  # coords grille
             Team(int(team_id)),
             Health(hp_max=hp_max, hp=hp),
+            PyramidLevel(level=1),  # Niveau initial de la pyramide
         ]
 
         # Wallet côté joueur (team 1)
