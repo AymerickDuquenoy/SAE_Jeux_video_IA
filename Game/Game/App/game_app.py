@@ -2301,8 +2301,8 @@ class GameApp:
 
                 self._draw_entities()
                 
-                # Ne pas dessiner le HUD en game_over
-                if self.state != "game_over":
+                # Ne pas dessiner le HUD en pause ou game_over
+                if self.state not in ("pause", "game_over"):
                     self._draw_hud_minimal()
                     if self.opt_show_advhud:
                         self._draw_hud_advanced()
@@ -2420,10 +2420,59 @@ class GameApp:
                     y += 28
 
             elif self.state == "pause":
-                self._draw_center_overlay("Pause", "ESC pour reprendre")
+                # Fond semi-transparent couvrant tout l'écran
+                overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                overlay.fill((15, 12, 8, 180))
+                self.screen.blit(overlay, (0, 0))
+                
+                # Couleurs égyptiennes
+                gold_dark = (139, 119, 77)
+                gold_light = (179, 156, 101)
+                text_gold = (222, 205, 163)
+                bg_dark = (45, 38, 30)
+                
+                # Panneau principal centré
+                panel_w, panel_h = 320, 340
+                panel_x = self.width // 2 - panel_w // 2
+                panel_y = self.height // 2 - panel_h // 2
+                
+                # Fond du panneau
+                panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+                panel_surf.fill((bg_dark[0], bg_dark[1], bg_dark[2], 245))
+                self.screen.blit(panel_surf, (panel_x, panel_y))
+                
+                # Bordures dorées doubles
+                pygame.draw.rect(self.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 4, border_radius=12)
+                pygame.draw.rect(self.screen, gold_light, (panel_x + 6, panel_y + 6, panel_w - 12, panel_h - 12), 2, border_radius=10)
+                
+                # Titre PAUSE
+                title_surf = self.font_big.render("PAUSE", True, text_gold)
+                title_rect = title_surf.get_rect(centerx=self.width // 2, top=panel_y + 25)
+                self.screen.blit(title_surf, title_rect)
+                
+                # Sous-titre
+                sub_surf = self.font_small.render("ESC pour reprendre", True, (150, 145, 135))
+                sub_rect = sub_surf.get_rect(centerx=self.width // 2, top=panel_y + 65)
+                self.screen.blit(sub_surf, sub_rect)
+                
+                # Ligne séparatrice
+                sep_y = panel_y + 95
+                pygame.draw.line(self.screen, gold_light, (panel_x + 30, sep_y), (panel_x + panel_w - 30, sep_y), 2)
+                
+                # Repositionner les boutons dans le panneau
+                btn_w, btn_h = 200, 42
+                btn_x = self.width // 2 - btn_w // 2
+                btn_y = panel_y + 115
+                btn_gap = 52
+                
+                self.btn_resume.rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+                self.btn_pause_options.rect = pygame.Rect(btn_x, btn_y + btn_gap, btn_w, btn_h)
+                self.btn_restart.rect = pygame.Rect(btn_x, btn_y + btn_gap * 2, btn_w, btn_h)
+                self.btn_menu.rect = pygame.Rect(btn_x, btn_y + btn_gap * 3, btn_w, btn_h)
+                
                 self.btn_resume.draw(self.screen)
-                self.btn_restart.draw(self.screen)
                 self.btn_pause_options.draw(self.screen)
+                self.btn_restart.draw(self.screen)
                 self.btn_menu.draw(self.screen)
 
             elif self.state == "game_over":
