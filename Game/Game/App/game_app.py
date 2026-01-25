@@ -1116,7 +1116,15 @@ class GameApp:
 
         self.astar_system = AStarPathfindingSystem(self.nav_grid)
         self.terrain_system = TerrainEffectSystem(self.nav_grid)
-        self.nav_system = NavigationSystem(arrive_radius=0.05)
+        
+        # ✅ Paramètres de combat centralisés depuis balance.json
+        combat_cfg = self.balance.get("combat", {})
+        attack_range = float(combat_cfg.get("attack_range", 2.0))
+        align_tolerance = float(combat_cfg.get("align_tolerance", 0.5))
+        hit_cooldown = float(combat_cfg.get("hit_cooldown", 0.6))
+        projectile_speed = float(combat_cfg.get("projectile_speed", 12.0))
+        
+        self.nav_system = NavigationSystem(arrive_radius=0.05, attack_range=attack_range)
 
         # objectifs fallback (lane2)
         goal_team1 = self._attack_cell_for_lane(1, 1)  # milieu
@@ -1129,8 +1137,6 @@ class GameApp:
 
         pyramid_ids = {int(self.player_pyramid_eid), int(self.enemy_pyramid_eid)}
 
-        attack_range = 1.8  # ✅ FIX: Plus de marge pour la portée
-
         self.targeting_system = TargetingSystem(
             goals_by_team=goals_by_team,
             pyramid_ids=pyramid_ids,
@@ -1139,8 +1145,8 @@ class GameApp:
 
         self.combat_system = CombatSystem(
             attack_range=attack_range,
-            hit_cooldown=0.7,
-            projectile_speed=10.0
+            hit_cooldown=hit_cooldown,
+            projectile_speed=projectile_speed
         )
 
         try:

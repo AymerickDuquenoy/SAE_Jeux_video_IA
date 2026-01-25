@@ -8,6 +8,8 @@ from Game.Ecs.Components.team import Team
 from Game.Ecs.Components.path import Path
 from Game.Ecs.Components.pathProgress import PathProgress
 from Game.Ecs.Components.lane import Lane
+from Game.Ecs.Components.health import Health
+from Game.Ecs.Components.unitStats import UnitStats
 
 
 class EnemySpawnerSystem(esper.Processor):
@@ -59,11 +61,15 @@ class EnemySpawnerSystem(esper.Processor):
         # ✅ économie ennemie (SAÉ)
         econ = self.balance.get("economy", {})
         pyr = self.balance.get("pyramid", {})
+        diff = self.balance.get("difficulty", {})
 
         self.enemy_start_money = float(econ.get("starting_money", 100.0)) * 0.60
 
         self.enemy_income_per_sec = float(econ.get("enemy_income_per_sec", pyr.get("income_base", 2.0)))
         self.enemy_income_per_sec *= float(econ.get("enemy_income_multiplier", 0.85))
+
+        # ✅ Limite max d'unités ennemies (évite lag)
+        self.max_enemy_units = int(diff.get("max_enemy_units", 30))
 
         # état
         self.timer = 0.0
@@ -151,10 +157,23 @@ class EnemySpawnerSystem(esper.Processor):
         except Exception:
             return 0.0
 
+    def _count_enemy_units(self) -> int:
+        """Compte les unités ennemies vivantes (team 2)."""
+        count = 0
+        for eid, (team, hp, stats) in esper.get_components(Team, Health, UnitStats):
+            if team.id == 2 and not hp.is_dead:
+                count += 1
+        return count
+
     # ---------------------------
     # spawn
     # ---------------------------
     def _spawn_one(self):
+        # Vérifier limite d'unités ennemies (évite lag)
+        if self._count_enemy_units() >= self.max_enemy_units:
+            self.last_message = f"Enemy: max units ({self.max_enemy_units})"
+            return
+        
         self._ensure_enemy_wallet()
         enemy_wallet = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
 

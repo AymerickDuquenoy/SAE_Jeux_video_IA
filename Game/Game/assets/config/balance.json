@@ -5,6 +5,12 @@
     "reward_divisor": 2,
     "dusty_divisor": 2
   },
+  "combat": {
+    "attack_range": 2.0,
+    "align_tolerance": 0.5,
+    "hit_cooldown": 0.6,
+    "projectile_speed": 12.0
+  },
   "units": {
     "S": { "name": "Momie", "power": 8, "speed": 70 },
     "M": { "name": "Dromadaire", "power": 12, "speed": 55 },
@@ -32,7 +38,8 @@
     "burst_every_levels": 3,
     "burst_max": 4,
     "enemy_income_base": 2.0,
-    "enemy_income_per_level": 0.3
+    "enemy_income_per_level": 0.3,
+    "max_enemy_units": 30
   },
   "map": {
     "player_pyramid": [2, 10],

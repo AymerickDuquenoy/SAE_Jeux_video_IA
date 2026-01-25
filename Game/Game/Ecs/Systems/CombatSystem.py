@@ -27,9 +27,9 @@ def _sign(x: float) -> float:
 class CombatSystem(esper.Processor):
     """Combat SAÉ : tirs axiaux uniquement, alignement requis."""
 
-    def __init__(self, *, attack_range: float = 1.8, hit_cooldown: float = 0.6, projectile_speed: float = 12.0):
+    def __init__(self, *, attack_range: float = 2.0, hit_cooldown: float = 0.6, projectile_speed: float = 12.0):
         super().__init__()
-        self.attack_range = float(attack_range)
+        self.attack_range = float(attack_range)  # Synchronisé avec TargetingSystem
         self.hit_cooldown = float(hit_cooldown)
         self.projectile_speed = float(projectile_speed)
         self.align_tolerance = 0.5

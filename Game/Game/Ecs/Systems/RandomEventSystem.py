@@ -135,14 +135,11 @@ class RandomEventSystem(esper.Processor):
         team_name = "JOUEUR" if self.bonus_team == 1 else "ENNEMI"
         self.current_message = f"🪶 BONUS FOUETS! {team_name} +25% production!"
         
-        # Appliquer bonus
+        # Appliquer bonus via multiplier (jamais modifier rate directement)
         pyramid_eid = self.player_pyramid_eid if self.bonus_team == 1 else self.enemy_pyramid_eid
         if esper.has_component(pyramid_eid, IncomeRate):
             income = esper.component_for_entity(pyramid_eid, IncomeRate)
-            if hasattr(income, 'multiplier'):
-                income.multiplier = 1.25
-            else:
-                income.rate *= 1.25
+            income.multiplier = 1.25  # Toujours utiliser multiplier
 
     def _end_event(self):
         """Termine l'événement actif."""
@@ -156,14 +153,11 @@ class RandomEventSystem(esper.Processor):
             self.original_mults = None
             
         elif self.active_event == "whip_bonus" and self.bonus_team:
-            # Retirer bonus
+            # Retirer bonus via multiplier (reset propre)
             pyramid_eid = self.player_pyramid_eid if self.bonus_team == 1 else self.enemy_pyramid_eid
             if esper.has_component(pyramid_eid, IncomeRate):
                 income = esper.component_for_entity(pyramid_eid, IncomeRate)
-                if hasattr(income, 'multiplier'):
-                    income.multiplier = 1.0
-                else:
-                    income.rate /= 1.25
+                income.multiplier = 1.0  # Reset propre
             self.bonus_team = None
         
         self.active_event = None

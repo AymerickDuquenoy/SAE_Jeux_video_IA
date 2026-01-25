@@ -32,10 +32,11 @@ class NavigationSystem(esper.Processor):
     Mouvements strictement axiaux (horizontal OU vertical, jamais diagonal).
     """
 
-    def __init__(self, *, arrive_radius: float = 0.15, min_speed: float = 0.0):
+    def __init__(self, *, arrive_radius: float = 0.15, min_speed: float = 0.0, attack_range: float = 2.0):
         super().__init__()
         self.arrive_radius = float(arrive_radius)
         self.min_speed = float(min_speed)
+        self.attack_range = float(attack_range)  # Synchronisé avec TargetingSystem et CombatSystem
 
     def _get_unit_type(self, ent: int) -> str:
         """Détermine le type d'unité (S/M/L) basé sur les stats."""
@@ -91,7 +92,7 @@ class NavigationSystem(esper.Processor):
                                 # S'arrêter SI:
                                 # 1. À portée ET aligné → peut tirer
                                 # 2. Très proche (< 0.5) → évite de passer à travers
-                                if dist <= 1.8 and aligned:
+                                if dist <= self.attack_range and aligned:
                                     should_stop_for_combat = True
                                 elif dist <= 0.5:
                                     should_stop_for_combat = True

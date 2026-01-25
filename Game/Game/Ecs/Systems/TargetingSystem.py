@@ -30,11 +30,11 @@ class TargetingSystem(esper.Processor):
     Assigne les cibles en utilisant le composant Lane.index.
     """
 
-    def __init__(self, *, goals_by_team: dict, pyramid_ids: set[int], attack_range: float = 1.5):
+    def __init__(self, *, goals_by_team: dict, pyramid_ids: set[int], attack_range: float = 2.0):
         super().__init__()
         self.goals_by_team = goals_by_team
         self.pyramid_ids = set(int(x) for x in pyramid_ids)
-        self.attack_range = float(attack_range)
+        self.attack_range = float(attack_range)  # Synchronisé avec CombatSystem et NavigationSystem
 
     def _get_unit_type(self, stats: UnitStats) -> str:
         """Détermine le type d'unité (S/M/L) basé sur les stats."""

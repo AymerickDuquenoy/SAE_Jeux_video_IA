@@ -193,6 +193,13 @@ class LaneRouteSystem:
         return (ax, ay)
 
     def process(self, dt: float):
+        # Nettoyer les entités qui n'existent plus (évite fuite mémoire)
+        dead_ents = [ent for ent in self.lane_by_ent if not esper.entity_exists(ent)]
+        for ent in dead_ents:
+            self.lane_by_ent.pop(ent, None)
+            self.stage_by_ent.pop(ent, None)
+            self.goal_by_ent.pop(ent, None)
+        
         for ent, (t, team, path) in esper.get_components(Transform, Team, PathComponent):
             if int(ent) in self.pyramid_ids:
                 continue
