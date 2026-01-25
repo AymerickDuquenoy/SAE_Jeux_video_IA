@@ -39,7 +39,7 @@ from Game.Services.terrain_randomizer import apply_random_terrain
 
 # UI : si tu as déjà Game/App/ui.py, il sera pris
 try:
-    from Game.App.ui import UIButton, UIToggle
+    from Game.App.ui import UIButton, UIToggle, UIMenuButton
 except Exception:
     class UIButton:
         def __init__(self, rect, text, font):
@@ -365,6 +365,19 @@ class GameApp:
         self.font = pygame.font.SysFont("consolas", 18)
         self.font_small = pygame.font.SysFont("consolas", 14)
         self.font_big = pygame.font.SysFont("consolas", 42)
+        
+        # Police pour le titre du menu (style égyptien)
+        self.font_title = pygame.font.SysFont("georgia", 72)
+        
+        # Charger l'image de fond du menu
+        self.menu_background = None
+        try:
+            menu_bg_path = self.game_root / "assets" / "menu_background.png"
+            if menu_bg_path.exists():
+                self.menu_background = pygame.image.load(str(menu_bg_path)).convert()
+                self.menu_background = pygame.transform.scale(self.menu_background, (self.width, self.height))
+        except Exception as e:
+            print(f"[WARN] Could not load menu background: {e}")
 
         self._load_save()
 
@@ -417,10 +430,11 @@ class GameApp:
         h = 54
         gap = 14
 
-        self.btn_play = UIButton(pygame.Rect(cx - w // 2, cy - (h + gap) * 1, w, h), "Jouer", self.font)
-        self.btn_options = UIButton(pygame.Rect(cx - w // 2, cy, w, h), "Options", self.font)
-        self.btn_controls = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 1, w, h), "Commandes", self.font)
-        self.btn_quit = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 2, w, h), "Quitter", self.font)
+        # Boutons du menu principal avec style égyptien
+        self.btn_play = UIMenuButton(pygame.Rect(cx - w // 2, cy - (h + gap) * 1, w, h), "Jouer", self.font)
+        self.btn_options = UIMenuButton(pygame.Rect(cx - w // 2, cy, w, h), "Options", self.font)
+        self.btn_controls = UIMenuButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 1, w, h), "Commandes", self.font)
+        self.btn_quit = UIMenuButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 2, w, h), "Quitter", self.font)
 
         self.btn_back = UIButton(pygame.Rect(18, 18, 160, 44), "Retour", self.font)
 
@@ -1839,13 +1853,33 @@ class GameApp:
                 self._draw_minimap()
 
             if self.state == "menu":
-                self._draw_center_overlay("Antique War", "Lane1=haut / Lane2=milieu / Lane3=bas")
+                # Afficher l'image de fond du menu
+                if self.menu_background:
+                    self.screen.blit(self.menu_background, (0, 0))
+                else:
+                    self._draw_center_overlay("Antique War", "")
+                
+                # Titre "Antique War" en haut
+                title_color = (222, 205, 163)  # Beige/crème
+                title_shadow = (80, 60, 40)    # Ombre foncée
+                
+                # Ombre du titre
+                title_surf = self.font_title.render("Antique War", True, title_shadow)
+                title_rect = title_surf.get_rect(center=(self.width // 2 + 3, 63))
+                self.screen.blit(title_surf, title_rect)
+                
+                # Titre principal
+                title_surf = self.font_title.render("Antique War", True, title_color)
+                title_rect = title_surf.get_rect(center=(self.width // 2, 60))
+                self.screen.blit(title_surf, title_rect)
+                
+                # Record en bas de l'écran
                 rec = self.font_small.render(
                     f"Record: {self.best_time:.1f}s | Kills: {self.best_kills}",
                     True,
-                    (230, 230, 230),
+                    (200, 185, 150),
                 )
-                rr = rec.get_rect(center=(self.width // 2, self.height // 2 - 40))
+                rr = rec.get_rect(center=(self.width // 2, self.height - 30))
                 self.screen.blit(rec, rr)
 
                 self.btn_play.draw(self.screen)
