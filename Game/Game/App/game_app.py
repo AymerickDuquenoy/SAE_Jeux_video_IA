@@ -7,6 +7,13 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import heapq
 
+# Pour le blur du menu
+try:
+    from PIL import Image, ImageFilter
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+
 from Game.Ecs.world import World
 from Game.Services.clock import GameClock
 from Game.Services.event_bus import EventBus
@@ -436,7 +443,7 @@ class GameApp:
         self.btn_controls = UIMenuButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 1, w, h), "Commandes", self.font)
         self.btn_quit = UIMenuButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 2, w, h), "Quitter", self.font)
 
-        self.btn_back = UIButton(pygame.Rect(18, 18, 160, 44), "Retour", self.font)
+        self.btn_back = UIMenuButton(pygame.Rect(18, 18, 160, 44), "Retour", self.font)
 
         self.btn_resume = UIButton(pygame.Rect(cx - w // 2, cy - (h + gap) * 1, w, h), "Reprendre", self.font)
         self.btn_restart = UIButton(pygame.Rect(cx - w // 2, cy, w, h), "Recommencer", self.font)
@@ -1277,6 +1284,43 @@ class GameApp:
         s.fill((0, 0, 0, alpha))
         self.screen.blit(s, (x, y))
 
+    def _draw_blurred_panel(self, x: int, y: int, w: int, h: int, blur_radius: int = 8):
+        """Dessine un panneau avec effet de flou sur le fond."""
+        if PIL_AVAILABLE:
+            try:
+                # Capturer la zone à flouter
+                sub_surface = self.screen.subsurface((x, y, w, h)).copy()
+                
+                # Convertir pygame surface -> PIL Image
+                raw_str = pygame.image.tostring(sub_surface, "RGB")
+                pil_img = Image.frombytes("RGB", (w, h), raw_str)
+                
+                # Appliquer le blur
+                pil_img = pil_img.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+                
+                # Reconvertir PIL -> pygame
+                raw_str = pil_img.tobytes()
+                blurred_surface = pygame.image.fromstring(raw_str, (w, h), "RGB")
+                
+                # Dessiner le fond flouté
+                self.screen.blit(blurred_surface, (x, y))
+                
+                # Ajouter un overlay semi-transparent pour assombrir
+                overlay = pygame.Surface((w, h), pygame.SRCALPHA)
+                overlay.fill((30, 25, 20, 140))
+                self.screen.blit(overlay, (x, y))
+                
+                # Bordure dorée
+                border_rect = pygame.Rect(x, y, w, h)
+                pygame.draw.rect(self.screen, (139, 119, 77), border_rect, 3, border_radius=8)
+                
+            except Exception:
+                # Fallback si erreur
+                self._draw_panel(x, y, w, h, alpha=180)
+        else:
+            # Fallback sans PIL
+            self._draw_panel(x, y, w, h, alpha=180)
+
     def _draw_center_overlay(self, title: str, subtitle: str = ""):
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 150))
@@ -1894,7 +1938,29 @@ class GameApp:
                 self.btn_quit.draw(self.screen)
 
             elif self.state == "options":
-                self._draw_center_overlay("Options", "ESC ou Retour pour revenir")
+                # Afficher le fond du menu
+                if self.menu_background:
+                    self.screen.blit(self.menu_background, (0, 0))
+                
+                # Panneau flouté derrière les toggles
+                panel_x = self.width // 2 - 340
+                panel_y = 115
+                panel_w = 680
+                panel_h = 380
+                self._draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
+                
+                # Titre "Options" stylisé
+                title_color = (222, 205, 163)
+                title_shadow = (80, 60, 40)
+                
+                title_surf = self.font_title.render("Options", True, title_shadow)
+                title_rect = title_surf.get_rect(center=(self.width // 2 + 3, 63))
+                self.screen.blit(title_surf, title_rect)
+                
+                title_surf = self.font_title.render("Options", True, title_color)
+                title_rect = title_surf.get_rect(center=(self.width // 2, 60))
+                self.screen.blit(title_surf, title_rect)
+                
                 self.btn_back.draw(self.screen)
 
                 self.tog_lanes.draw(self.screen)
@@ -1904,10 +1970,27 @@ class GameApp:
                 self.tog_advhud.draw(self.screen)
 
             elif self.state == "controls":
-                self._draw_center_overlay("Commandes", "ESC ou Retour pour revenir")
+                # Afficher le fond du menu
+                if self.menu_background:
+                    self.screen.blit(self.menu_background, (0, 0))
+                
+                # Panneau flouté derrière le texte
+                self._draw_blurred_panel(48, 120, self.width - 96, self.height - 190, blur_radius=10)
+                
+                # Titre "Commandes" stylisé
+                title_color = (222, 205, 163)
+                title_shadow = (80, 60, 40)
+                
+                title_surf = self.font_title.render("Commandes", True, title_shadow)
+                title_rect = title_surf.get_rect(center=(self.width // 2 + 3, 63))
+                self.screen.blit(title_surf, title_rect)
+                
+                title_surf = self.font_title.render("Commandes", True, title_color)
+                title_rect = title_surf.get_rect(center=(self.width // 2, 60))
+                self.screen.blit(title_surf, title_rect)
+                
                 self.btn_back.draw(self.screen)
 
-                self._draw_panel(48, 120, self.width - 96, self.height - 190, alpha=110)
                 x = 70
                 y = 150
                 lines = [
@@ -1919,9 +2002,9 @@ class GameApp:
                     "Pause : ESC",
                 ]
                 for txt in lines:
-                    surf = self.font.render(txt, True, (240, 240, 240))
+                    surf = self.font.render(txt, True, (222, 205, 163))
                     self.screen.blit(surf, (x, y))
-                    y += 24
+                    y += 28
 
             elif self.state == "pause":
                 self._draw_center_overlay("Pause", "ESC pour reprendre")
