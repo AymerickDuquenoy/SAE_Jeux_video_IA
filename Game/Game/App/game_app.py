@@ -1,6 +1,7 @@
 # Game/App/game_app.py
 import json
 import random
+import os
 import pygame
 import esper
 from pathlib import Path
@@ -300,6 +301,13 @@ class GameApp:
 
         # lane selector HUD
         self.lane_btn_rects = []
+        
+        # Boutons HUD (unités + upgrade)
+        self.unit_btn_rects = {}  # {"S": rect, "M": rect, "L": rect}
+        self.upgrade_btn_rect = None
+        self.unit_icons_cache = {}  # Cache pour les icônes des unités
+        self.whip_icon = None  # Icône du fouet chargée depuis PNG (image originale)
+        self.whip_icons_cache = {}  # Cache pour différentes tailles d'icônes du fouet
 
     # ----------------------------
     # Selected lane helpers
@@ -462,12 +470,12 @@ class GameApp:
         self.tog_paths = UIToggle(pygame.Rect(ox, oy + (th + tg) * 3, tw, th), "Debug paths (chemins)", self.font, self.opt_show_paths)
         self.tog_advhud = UIToggle(pygame.Rect(ox, oy + (th + tg) * 4, tw, th), "HUD avancée", self.font, self.opt_show_advhud)
 
-        # In-game lane buttons
-        bx = 22
-        by = 90
-        bw = 92
-        bh = 26
-        gap = 10
+        # In-game lane buttons (repositionnés sous le nouveau HUD)
+        bx = 12
+        by = 175  # Sous le panneau de coûts des unités
+        bw = 75
+        bh = 30
+        gap = 8
         self.lane_btn_rects = [
             pygame.Rect(bx + i * (bw + gap), by, bw, bh)
             for i in range(3)
@@ -1341,6 +1349,149 @@ class GameApp:
             sr = sub.get_rect(center=(self.width // 2, self.height // 2 - 95))
             self.screen.blit(sub, sr)
 
+    def _draw_whip_icon(self, x: int, y: int, size: int = 20, with_background: bool = True):
+        """Dessine l'icône du fouet depuis le PNG (avec cache multi-tailles)."""
+        
+        # Dessiner un fond clair pour le contraste
+        if with_background:
+            bg_size = size - 2
+            bg_x = x + 1
+            bg_y = y + 1
+            # Fond sable très clair
+            pygame.draw.rect(self.screen, (130, 115, 90), (bg_x, bg_y, bg_size, bg_size), border_radius=6)
+            pygame.draw.rect(self.screen, (180, 155, 100), (bg_x, bg_y, bg_size, bg_size), 2, border_radius=6)
+        
+        # Vérifier le cache - si on a déjà une surface valide
+        if size in self.whip_icons_cache and self.whip_icons_cache[size] is not None:
+            self.screen.blit(self.whip_icons_cache[size], (x, y))
+            return
+        
+        # Charger l'image originale si pas encore fait
+        if self.whip_icon is None:
+            try:
+                # Essayer plusieurs chemins possibles
+                possible_paths = [
+                    os.path.join(os.path.dirname(__file__), "..", "assets", "sprites", "fouet.png"),
+                    os.path.join("Game", "assets", "sprites", "fouet.png"),
+                    os.path.join("assets", "sprites", "fouet.png"),
+                ]
+                
+                for whip_path in possible_paths:
+                    if os.path.exists(whip_path):
+                        self.whip_icon = pygame.image.load(whip_path).convert_alpha()
+                        break
+                else:
+                    self.whip_icon = False  # Aucun chemin trouvé
+            except Exception as e:
+                print(f"[WARN] Failed to load fouet.png: {e}")
+                self.whip_icon = False
+        
+        # Créer l'icône à la taille demandée
+        if self.whip_icon and self.whip_icon is not False:
+            orig_w, orig_h = self.whip_icon.get_size()
+            # Calculer le ratio pour REMPLIR le carré (basé sur la hauteur)
+            scale = size / orig_h  # Remplir par la hauteur
+            new_w, new_h = int(orig_w * scale), int(orig_h * scale)
+            
+            if new_w > 0 and new_h > 0:
+                scaled = pygame.transform.smoothscale(self.whip_icon, (new_w, new_h))
+                self.whip_icons_cache[size] = scaled
+                # Centrer horizontalement si l'image est plus large
+                offset_x = (size - new_w) // 2
+                self.screen.blit(scaled, (x + offset_x, y))
+                return
+        
+        # Fallback: dessiner une forme simple (ne pas mettre en cache pour réessayer)
+        handle_color = (139, 90, 43)
+        pygame.draw.rect(self.screen, handle_color, (x, y + size//2 - 3, 8, 6), border_radius=2)
+        whip_color = (180, 140, 80)
+        points = [
+            (x + 8, y + size//2),
+            (x + 12, y + size//3),
+            (x + 16, y + size//4),
+            (x + size, y + 2),
+        ]
+        pygame.draw.lines(self.screen, whip_color, False, points, 3)
+        pygame.draw.circle(self.screen, (220, 180, 100), (x + size, y + 2), 2)
+
+    def _get_unit_icon(self, unit_key: str, size: int = 32) -> pygame.Surface:
+        """Retourne une icône miniature de l'unité depuis le sprite."""
+        cache_key = f"icon_{unit_key}_{size}"
+        
+        if cache_key in self.unit_icons_cache:
+            return self.unit_icons_cache[cache_key]
+        
+        # Créer une surface de fallback
+        icon = pygame.Surface((size, size), pygame.SRCALPHA)
+        
+        # Essayer de charger depuis sprite_renderer
+        try:
+            from Game.App.sprite_renderer import sprite_renderer
+            sprite_renderer._load_sprites()
+            
+            # Mapping unit_key -> sprite_key
+            sprite_map = {"S": "momie_1", "M": "dromadaire_1", "L": "sphinx_1"}
+            sprite_key = sprite_map.get(unit_key, "momie_1")
+            
+            frames = sprite_renderer.frames.get(sprite_key)
+            if frames and frames[0]:
+                # Prendre la première frame et la redimensionner
+                orig = frames[0]
+                orig_w, orig_h = orig.get_size()
+                
+                # Garder les proportions
+                scale = min(size / orig_w, size / orig_h) * 0.9
+                new_w = int(orig_w * scale)
+                new_h = int(orig_h * scale)
+                
+                scaled = pygame.transform.smoothscale(orig, (new_w, new_h))
+                
+                # Centrer sur l'icône
+                icon.blit(scaled, ((size - new_w) // 2, (size - new_h) // 2))
+                
+                self.unit_icons_cache[cache_key] = icon
+                return icon
+        except Exception:
+            pass
+        
+        # Fallback: dessiner des formes simples
+        colors = {"S": (200, 180, 140), "M": (180, 140, 100), "L": (220, 200, 150)}
+        color = colors.get(unit_key, (200, 180, 140))
+        
+        if unit_key == "S":  # Momie - petit cercle
+            pygame.draw.circle(icon, color, (size//2, size//2), size//3)
+            pygame.draw.circle(icon, (255, 255, 200), (size//2 - 3, size//2 - 3), 2)
+        elif unit_key == "M":  # Dromadaire - ovale
+            pygame.draw.ellipse(icon, color, (4, 8, size - 8, size - 12))
+            pygame.draw.circle(icon, color, (size//2 + 6, 8), 4)
+        else:  # Sphinx - triangle
+            points = [(size//2, 4), (4, size - 4), (size - 4, size - 4)]
+            pygame.draw.polygon(icon, color, points)
+        
+        self.unit_icons_cache[cache_key] = icon
+        return icon
+
+    def _draw_upgrade_icon(self, surface: pygame.Surface, x: int, y: int, size: int = 24):
+        """Dessine une icône d'upgrade (flèche vers le haut avec étoile)."""
+        cx, cy = x + size // 2, y + size // 2
+        
+        # Flèche vers le haut
+        arrow_color = (255, 220, 100)
+        points = [
+            (cx, y + 3),           # Pointe
+            (cx - 8, y + 12),      # Gauche haut
+            (cx - 4, y + 12),      # Gauche milieu
+            (cx - 4, y + size - 3),  # Gauche bas
+            (cx + 4, y + size - 3),  # Droite bas
+            (cx + 4, y + 12),      # Droite milieu
+            (cx + 8, y + 12),      # Droite haut
+        ]
+        pygame.draw.polygon(surface, arrow_color, points)
+        pygame.draw.polygon(surface, (200, 170, 60), points, 2)
+        
+        # Petite étoile au sommet
+        pygame.draw.circle(surface, (255, 255, 200), (cx, y + 5), 3)
+
     def _draw_lane_paths_all(self):
         if not self.lane_paths:
             return
@@ -1489,23 +1640,61 @@ class GameApp:
             sprite_renderer.draw_projectile(self.screen, sx, sy, p.team_id)
 
     def _draw_lane_selector(self):
+        """Dessine les boutons de sélection de lane avec style égyptien."""
         selected = self._get_selected_lane_index()
-
+        
+        # Couleurs égyptiennes
+        gold_dark = (139, 119, 77)
+        gold_light = (179, 156, 101)
+        sand_bg = (58, 52, 45)
+        sand_active = (90, 75, 55)
+        text_gold = (222, 205, 163)
+        
         for i, r in enumerate(self.lane_btn_rects):
             active = (i == selected)
-
-            bg = (60, 200, 120) if active else (35, 35, 40)
-            border = (240, 240, 240) if active else (80, 80, 90)
-            txt_col = (18, 18, 22) if active else (240, 240, 240)
-
-            pygame.draw.rect(self.screen, bg, r, border_radius=10)
-            pygame.draw.rect(self.screen, border, r, width=2, border_radius=10)
-
+            
+            # Fond du bouton
+            bg = sand_active if active else sand_bg
+            pygame.draw.rect(self.screen, bg, r, border_radius=6)
+            
+            # Bordure extérieure dorée
+            border_color = gold_light if active else gold_dark
+            pygame.draw.rect(self.screen, border_color, r, width=3, border_radius=6)
+            
+            # Bordure intérieure si actif
+            if active:
+                inner = r.inflate(-6, -6)
+                pygame.draw.rect(self.screen, gold_light, inner, width=2, border_radius=4)
+            
+            # Texte
+            txt_col = (255, 230, 150) if active else text_gold
             s = self.font_small.render(f"Lane {i+1}", True, txt_col)
             tr = s.get_rect(center=r.center)
             self.screen.blit(s, tr)
 
+    def _handle_hud_click(self, mx: int, my: int) -> bool:
+        """Gère les clics sur les boutons HUD (unités et upgrade)."""
+        # Vérifier clic sur boutons d'unités
+        for unit_key, rect in self.unit_btn_rects.items():
+            if rect and rect.collidepoint(mx, my):
+                # Spawn l'unité correspondante via input_system
+                if self.input_system and hasattr(self.input_system, '_spawn_unit_player'):
+                    self.input_system._spawn_unit_player(unit_key)
+                    return True
+        
+        # Vérifier clic sur bouton upgrade
+        if self.upgrade_btn_rect and self.upgrade_btn_rect.collidepoint(mx, my):
+            if self.upgrade_system and hasattr(self.upgrade_system, 'request_upgrade'):
+                self.upgrade_system.request_upgrade()
+                return True
+        
+        return False
+
     def _handle_lane_selector_click(self, mx: int, my: int) -> bool:
+        # Gérer aussi les clics HUD
+        if self._handle_hud_click(mx, my):
+            return True
+        
         for i, r in enumerate(self.lane_btn_rects):
             if r.collidepoint(mx, my):
                 self._set_selected_lane_index(i)
@@ -1526,40 +1715,237 @@ class GameApp:
 
         try:
             income = esper.component_for_entity(self.player_pyramid_eid, IncomeRate)
-            income_txt = f"{income.rate:.1f}/s"
-            if hasattr(income, 'multiplier') and income.multiplier != 1.0:
-                income_txt += f" (x{income.multiplier:.2f})"
+            income_rate = income.effective_rate if hasattr(income, 'effective_rate') else income.rate
         except Exception:
-            income_txt = "?"
+            income_rate = 2.5
 
-        self._draw_panel(12, 12, 580, 130, alpha=115)
-        x = 22
-        y = 20
+        # Couleurs égyptiennes
+        gold_dark = (139, 119, 77)
+        gold_light = (179, 156, 101)
+        text_gold = (222, 205, 163)
+        text_light = (255, 245, 220)
+        bg_dark = (40, 35, 30, 220)
+        
+        # ═══════════════════════════════════════════════════════════
+        # PANNEAU RESSOURCES + HP (haut gauche)
+        # ═══════════════════════════════════════════════════════════
+        panel_w, panel_h = 280, 90
+        panel_x, panel_y = 12, 12
+        
+        # Fond avec bordure dorée
+        panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        panel_surf.fill(bg_dark)
+        self.screen.blit(panel_surf, (panel_x, panel_y))
+        pygame.draw.rect(self.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=8)
+        pygame.draw.rect(self.screen, gold_light, (panel_x + 4, panel_y + 4, panel_w - 8, panel_h - 8), 2, border_radius=6)
+        
+        # Ligne 1: Ressources avec icône de fouet PNG (sans fond, plus grande)
+        self._draw_whip_icon(panel_x + 12, panel_y + 8, 22, with_background=False)
+        
+        fouet_text = f"{int(wallet.solde)}"
+        prod_text = f"+{income_rate:.1f}/s"
+        
+        fouet_surf = self.font.render(fouet_text, True, (255, 215, 80))
+        prod_surf = self.font_small.render(prod_text, True, (150, 220, 150))
+        
+        self.screen.blit(fouet_surf, (panel_x + 55, panel_y + 12))
+        self.screen.blit(prod_surf, (panel_x + 55 + fouet_surf.get_width() + 8, panel_y + 16))
+        
+        # Ligne 2: Barre de vie JOUEUR
+        bar_y = panel_y + 40
+        bar_w = 120
+        bar_h = 14
+        
+        you_label = self.font_small.render("Vous", True, text_gold)
+        self.screen.blit(you_label, (panel_x + 15, bar_y - 1))
+        
+        bar_x = panel_x + 55
+        hp_ratio = player_hp.hp / max(1, player_hp.hp_max)
+        pygame.draw.rect(self.screen, (50, 45, 40), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+        fill_w = max(0, int((bar_w - 4) * hp_ratio))
+        if fill_w > 0:
+            pygame.draw.rect(self.screen, (80, 180, 120), (bar_x + 2, bar_y + 2, fill_w, bar_h - 4), border_radius=2)
+        pygame.draw.rect(self.screen, gold_dark, (bar_x, bar_y, bar_w, bar_h), 2, border_radius=3)
+        
+        hp_text = self.font_small.render(f"{player_hp.hp}/{player_hp.hp_max}", True, text_light)
+        self.screen.blit(hp_text, (bar_x + bar_w + 6, bar_y - 1))
+        
+        # Ligne 3: Barre de vie ENNEMI
+        bar_y = panel_y + 62
+        
+        enemy_label = self.font_small.render("Ennemi", True, (220, 150, 150))
+        self.screen.blit(enemy_label, (panel_x + 15, bar_y - 1))
+        
+        bar_x = panel_x + 70
+        bar_w = 105
+        hp_ratio = enemy_hp.hp / max(1, enemy_hp.hp_max)
+        pygame.draw.rect(self.screen, (50, 40, 40), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+        fill_w = max(0, int((bar_w - 4) * hp_ratio))
+        if fill_w > 0:
+            pygame.draw.rect(self.screen, (220, 80, 80), (bar_x + 2, bar_y + 2, fill_w, bar_h - 4), border_radius=2)
+        pygame.draw.rect(self.screen, (160, 100, 100), (bar_x, bar_y, bar_w, bar_h), 2, border_radius=3)
+        
+        hp_text = self.font_small.render(f"{enemy_hp.hp}/{enemy_hp.hp_max}", True, (255, 200, 200))
+        self.screen.blit(hp_text, (bar_x + bar_w + 6, bar_y - 1))
+        
+        # ═══════════════════════════════════════════════════════════
+        # BOUTONS UNITÉS avec icônes des sprites
+        # ═══════════════════════════════════════════════════════════
+        units_y = panel_y + panel_h + 10
+        btn_size = 50
+        btn_gap = 8
+        
+        # Calculer les coûts des unités
+        try:
+            unit_data = {
+                "S": {"cost": int(self.factory.compute_unit_stats("S").cost), "key": "1", "name": "Momie"},
+                "M": {"cost": int(self.factory.compute_unit_stats("M").cost), "key": "2", "name": "Dromadaire"},
+                "L": {"cost": int(self.factory.compute_unit_stats("L").cost), "key": "3", "name": "Sphinx"},
+            }
+        except:
+            unit_data = {
+                "S": {"cost": 80, "key": "1", "name": "Momie"},
+                "M": {"cost": 120, "key": "2", "name": "Dromadaire"},
+                "L": {"cost": 180, "key": "3", "name": "Sphinx"},
+            }
+        
+        btn_x = panel_x
+        for unit_key, data in unit_data.items():
+            cost = data["cost"]
+            can_afford = wallet.solde >= cost
+            
+            # Rectangle du bouton
+            btn_rect = pygame.Rect(btn_x, units_y, btn_size, btn_size + 18)
+            self.unit_btn_rects[unit_key] = btn_rect
+            
+            # Fond du bouton
+            if can_afford:
+                bg_color = (55, 50, 42, 230)
+                border_color = gold_light
+            else:
+                bg_color = (45, 40, 38, 200)
+                border_color = (100, 80, 60)
+            
+            btn_surf = pygame.Surface((btn_size, btn_size + 18), pygame.SRCALPHA)
+            btn_surf.fill(bg_color)
+            self.screen.blit(btn_surf, (btn_x, units_y))
+            pygame.draw.rect(self.screen, border_color, btn_rect, 2, border_radius=6)
+            
+            # Icône de l'unité
+            icon = self._get_unit_icon(unit_key, btn_size - 8)
+            icon_x = btn_x + 4
+            icon_y = units_y + 2
+            self.screen.blit(icon, (icon_x, icon_y))
+            
+            # Coût en bas du bouton
+            cost_color = (150, 220, 150) if can_afford else (180, 100, 100)
+            cost_text = self.font_small.render(f"{cost}", True, cost_color)
+            cost_rect = cost_text.get_rect(centerx=btn_x + btn_size // 2, top=units_y + btn_size - 2)
+            self.screen.blit(cost_text, cost_rect)
+            
+            # Touche raccourci (petit)
+            key_text = self.font_small.render(data["key"], True, (180, 170, 150))
+            self.screen.blit(key_text, (btn_x + 3, units_y + 3))
+            
+            btn_x += btn_size + btn_gap
+        
+        # ═══════════════════════════════════════════════════════════
+        # BOUTON UPGRADE
+        # ═══════════════════════════════════════════════════════════
+        upgrade_x = btn_x + 5
+        upgrade_w = 55
+        upgrade_h = btn_size + 18
+        
+        # Vérifier si on peut upgrade
+        try:
+            pyr_level = esper.component_for_entity(self.player_pyramid_eid, PyramidLevel)
+            current_level = pyr_level.level
+        except:
+            current_level = 1
+        
+        max_level = int(self.balance.get("pyramid", {}).get("level_max", 5))
+        upgrade_costs = self.balance.get("pyramid", {}).get("upgrade_costs", [100, 125, 150, 175, 200])
+        
+        can_upgrade = current_level < max_level
+        if can_upgrade and current_level - 1 < len(upgrade_costs):
+            upgrade_cost = upgrade_costs[current_level - 1]
+            can_afford_upgrade = wallet.solde >= upgrade_cost
+        else:
+            upgrade_cost = 0
+            can_afford_upgrade = False
+        
+        self.upgrade_btn_rect = pygame.Rect(upgrade_x, units_y, upgrade_w, upgrade_h)
+        
+        # Fond du bouton upgrade
+        if can_upgrade and can_afford_upgrade:
+            bg_color = (60, 55, 40, 230)
+            border_color = (200, 180, 100)
+        elif can_upgrade:
+            bg_color = (50, 45, 40, 200)
+            border_color = gold_dark
+        else:
+            bg_color = (40, 40, 40, 180)
+            border_color = (80, 80, 80)
+        
+        upgrade_surf = pygame.Surface((upgrade_w, upgrade_h), pygame.SRCALPHA)
+        upgrade_surf.fill(bg_color)
+        self.screen.blit(upgrade_surf, (upgrade_x, units_y))
+        pygame.draw.rect(self.screen, border_color, self.upgrade_btn_rect, 2, border_radius=6)
+        
+        # Icône upgrade
+        self._draw_upgrade_icon(self.screen, upgrade_x + (upgrade_w - 28) // 2, units_y + 5, 28)
+        
+        # Texte niveau et coût
+        if can_upgrade:
+            level_text = self.font_small.render(f"Nv.{current_level + 1}", True, text_gold)
+            cost_color = (150, 220, 150) if can_afford_upgrade else (180, 100, 100)
+            cost_text = self.font_small.render(f"{upgrade_cost}", True, cost_color)
+        else:
+            level_text = self.font_small.render("MAX", True, (180, 180, 180))
+            cost_text = None
+        
+        level_rect = level_text.get_rect(centerx=upgrade_x + upgrade_w // 2, top=units_y + 36)
+        self.screen.blit(level_text, level_rect)
+        
+        if cost_text:
+            cost_rect = cost_text.get_rect(centerx=upgrade_x + upgrade_w // 2, top=units_y + btn_size + 2)
+            self.screen.blit(cost_text, cost_rect)
+        
+        # Touche U (petit)
+        u_text = self.font_small.render("U", True, (180, 170, 150))
+        self.screen.blit(u_text, (upgrade_x + 3, units_y + 3))
 
-        line1 = self.font.render(f"Coups de fouet: {int(wallet.solde)}   |   Prod: {income_txt}", True, (240, 240, 240))
-        line2 = self.font.render(f"Pyramide: {player_hp.hp}/{player_hp.hp_max}   |   Ennemi: {enemy_hp.hp}/{enemy_hp.hp_max}", True, (240, 240, 240))
-        line3 = self.font_small.render("Z/X/C (ou W/X/C) lane   1/2/3 spawn   U upgrade   ESC pause", True, (220, 220, 220))
-
-        self.screen.blit(line1, (x, y)); y += 24
-        self.screen.blit(line2, (x, y)); y += 24
-        self.screen.blit(line3, (x, y))
-
+        # ═══════════════════════════════════════════════════════════
+        # SÉLECTEUR DE LANE (sous les boutons d'unités)
+        # ═══════════════════════════════════════════════════════════
+        lane_y = units_y + btn_size + 28
+        lane_bw = 75
+        lane_bh = 28
+        lane_gap = 8
+        
+        # Mettre à jour les rectangles des boutons de lane
+        self.lane_btn_rects = [
+            pygame.Rect(panel_x + i * (lane_bw + lane_gap), lane_y, lane_bw, lane_bh)
+            for i in range(3)
+        ]
+        
+        # Dessiner les boutons de lane
         self._draw_lane_selector()
 
-        map_txt = self.font_small.render(f"Map: {self.last_map_name}", True, (200, 200, 200))
-        self.screen.blit(map_txt, (22, 118))
-
-        # ✅ Afficher message d'événement aléatoire
+        # ═══════════════════════════════════════════════════════════
+        # MESSAGE D'ÉVÉNEMENT (centre écran)
+        # ═══════════════════════════════════════════════════════════
         if self.random_event_system:
             msg = self.random_event_system.get_message()
             if msg:
                 event_surf = self.font_big.render(msg, True, (255, 220, 80))
-                event_rect = event_surf.get_rect(center=(self.width // 2, self.height // 2 - 100))
-                # Fond semi-transparent
-                bg_rect = event_rect.inflate(20, 10)
+                event_rect = event_surf.get_rect(center=(self.width // 2, 80))
+                # Fond stylisé
+                bg_rect = event_rect.inflate(30, 15)
                 bg_surf = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
-                bg_surf.fill((0, 0, 0, 180))
+                bg_surf.fill((40, 30, 20, 220))
                 self.screen.blit(bg_surf, bg_rect.topleft)
+                pygame.draw.rect(self.screen, gold_light, bg_rect, 3, border_radius=8)
                 self.screen.blit(event_surf, event_rect)
 
     def _draw_hud_advanced(self):
@@ -1586,7 +1972,7 @@ class GameApp:
         self.screen.blit(l3, (x, y + 40))
 
     def _draw_minimap(self):
-        """Dessine une minimap en bas à droite."""
+        """Dessine une minimap stylisée en bas à droite."""
         if not self.nav_grid:
             return
             
@@ -1595,25 +1981,31 @@ class GameApp:
         if grid_w <= 0 or grid_h <= 0:
             return
 
+        # Couleurs égyptiennes
+        gold_dark = (139, 119, 77)
+        gold_light = (179, 156, 101)
+        text_gold = (222, 205, 163)
+
         # Dimensions minimap
-        mm_w = 150
-        mm_h = 80
+        mm_w = 180
+        mm_h = 90
         mm_x = self.width - mm_w - 15
-        mm_y = self.height - mm_h - 15
+        mm_y = self.height - mm_h - 35
         
-        # Fond semi-transparent
-        bg = pygame.Surface((mm_w + 4, mm_h + 4), pygame.SRCALPHA)
-        bg.fill((20, 20, 25, 200))
-        self.screen.blit(bg, (mm_x - 2, mm_y - 2))
+        # Fond avec style égyptien
+        bg = pygame.Surface((mm_w + 8, mm_h + 8), pygame.SRCALPHA)
+        bg.fill((35, 30, 25, 220))
+        self.screen.blit(bg, (mm_x - 4, mm_y - 4))
         
-        # Bordure
-        pygame.draw.rect(self.screen, (80, 80, 90), (mm_x - 2, mm_y - 2, mm_w + 4, mm_h + 4), 1)
+        # Bordures dorées
+        pygame.draw.rect(self.screen, gold_dark, (mm_x - 4, mm_y - 4, mm_w + 8, mm_h + 8), 3, border_radius=6)
+        pygame.draw.rect(self.screen, gold_light, (mm_x, mm_y, mm_w, mm_h), 2, border_radius=4)
         
         # Échelle
         scale_x = mm_w / grid_w
         scale_y = mm_h / grid_h
         
-        # Dessiner le terrain (simplifié)
+        # Dessiner le terrain (couleurs sable)
         for y in range(grid_h):
             for x in range(grid_w):
                 walk = self.nav_grid.is_walkable(x, y)
@@ -1625,20 +2017,20 @@ class GameApp:
                 ph = max(1, int(scale_y))
                 
                 if not walk or m <= 0:
-                    color = (100, 50, 50)  # Interdit
+                    color = (80, 50, 45)  # Interdit (rouge sombre)
                 elif m < 0.99:
-                    color = (120, 100, 70)  # Dusty
+                    color = (100, 85, 60)  # Dusty (sable foncé)
                 else:
-                    color = (80, 80, 60)  # Open
+                    color = (70, 65, 50)  # Open (sable)
                 
                 pygame.draw.rect(self.screen, color, (px, py, pw, ph))
         
-        # Dessiner les lanes
+        # Dessiner les lanes (lignes dorées subtiles)
         for lane_y in self.lanes_y:
             py = mm_y + int(lane_y * scale_y)
-            pygame.draw.line(self.screen, (60, 60, 80), (mm_x, py), (mm_x + mm_w, py), 1)
+            pygame.draw.line(self.screen, (100, 85, 60), (mm_x, py), (mm_x + mm_w, py), 1)
         
-        # Dessiner les pyramides
+        # Dessiner les pyramides (triangles)
         for eid in (self.player_pyramid_eid, self.enemy_pyramid_eid):
             if not esper.entity_exists(eid):
                 continue
@@ -1648,10 +2040,18 @@ class GameApp:
             px = mm_x + int(t.pos[0] * scale_x)
             py = mm_y + int(t.pos[1] * scale_y)
             
-            color = (80, 220, 140) if team.id == 1 else (240, 100, 100)
-            pygame.draw.rect(self.screen, color, (px - 3, py - 3, 6, 6))
+            # Triangles au lieu de carrés
+            if team.id == 1:
+                color = (220, 190, 80)  # Or (joueur)
+                points = [(px, py - 5), (px - 4, py + 3), (px + 4, py + 3)]
+            else:
+                color = (220, 100, 80)  # Rouge (ennemi)
+                points = [(px, py - 5), (px - 4, py + 3), (px + 4, py + 3)]
+            
+            pygame.draw.polygon(self.screen, color, points)
+            pygame.draw.polygon(self.screen, (255, 255, 255), points, 1)
         
-        # Dessiner les unités
+        # Dessiner les unités (points colorés)
         for ent, (t, team, stats) in esper.get_components(Transform, Team, UnitStats):
             if ent in (self.player_pyramid_eid, self.enemy_pyramid_eid):
                 continue
@@ -1664,12 +2064,17 @@ class GameApp:
             px = mm_x + int(t.pos[0] * scale_x)
             py = mm_y + int(t.pos[1] * scale_y)
             
-            color = (100, 255, 160) if team.id == 1 else (255, 120, 120)
+            if team.id == 1:
+                color = (180, 220, 100)  # Vert-or (joueur)
+            else:
+                color = (255, 130, 100)  # Rouge-orange (ennemi)
+            
             pygame.draw.circle(self.screen, color, (px, py), 2)
         
-        # Label
-        label = self.font_small.render("Minimap", True, (180, 180, 180))
-        self.screen.blit(label, (mm_x, mm_y - 18))
+        # Label stylisé
+        label = self.font_small.render("Carte", True, text_gold)
+        label_rect = label.get_rect(centerx=mm_x + mm_w // 2, bottom=mm_y - 8)
+        self.screen.blit(label, label_rect)
 
     # ----------------------------
     # State helpers

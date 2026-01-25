@@ -114,7 +114,7 @@ class RandomEventSystem(esper.Processor):
         self.active_event = "locusts"
         self.event_timer = 0.5  # Très court, effet instantané
         self.message_timer = 3.0
-        self.current_message = "🦗 SAUTERELLES! 15 dégâts à tous!"
+        self.current_message = "SAUTERELLES! 15 dégâts à tous!"
         
         damage = 15
         
@@ -133,7 +133,7 @@ class RandomEventSystem(esper.Processor):
         # Choisir équipe aléatoire
         self.bonus_team = random.choice([1, 2])
         team_name = "JOUEUR" if self.bonus_team == 1 else "ENNEMI"
-        self.current_message = f"🪶 BONUS FOUETS! {team_name} +25% production!"
+        self.current_message = f"BONUS FOUETS! {team_name} +25% production!"
         
         # Appliquer bonus via multiplier (jamais modifier rate directement)
         pyramid_eid = self.player_pyramid_eid if self.bonus_team == 1 else self.enemy_pyramid_eid
