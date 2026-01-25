@@ -1873,13 +1873,19 @@ class GameApp:
                 title_rect = title_surf.get_rect(center=(self.width // 2, 60))
                 self.screen.blit(title_surf, title_rect)
                 
-                # Record en bas de l'écran
-                rec = self.font_small.render(
-                    f"Record: {self.best_time:.1f}s | Kills: {self.best_kills}",
-                    True,
-                    (200, 185, 150),
-                )
+                # Record en bas de l'écran (avec fond pour lisibilité)
+                record_text = f"Record: {self.best_time:.1f}s | Kills: {self.best_kills}"
+                rec = self.font_small.render(record_text, True, (255, 245, 220))
                 rr = rec.get_rect(center=(self.width // 2, self.height - 30))
+                
+                # Fond semi-transparent
+                padding = 10
+                bg_rect = pygame.Rect(rr.left - padding, rr.top - 4, rr.width + padding * 2, rr.height + 8)
+                bg_surf = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+                bg_surf.fill((40, 30, 20, 180))
+                self.screen.blit(bg_surf, bg_rect)
+                
+                # Texte
                 self.screen.blit(rec, rr)
 
                 self.btn_play.draw(self.screen)
