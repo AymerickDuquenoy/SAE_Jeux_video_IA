@@ -1,4 +1,13 @@
 # Game/Ecs/Systems/EnemySpawnerSystem.py
+"""
+Système IA ennemi avec difficulté configurable.
+
+Difficultés:
+- Facile (easy): income x0.5, spawn lent, peu d'upgrades
+- Moyen (medium): income x1.0, spawn normal, upgrades normaux  
+- Difficile (hard): income x1.5, spawn rapide, upgrades fréquents
+- Extrême (extreme): income x2.0, spawn très rapide, upgrades agressifs
+"""
 import random
 import esper
 
@@ -10,20 +19,55 @@ from Game.Ecs.Components.pathProgress import PathProgress
 from Game.Ecs.Components.lane import Lane
 from Game.Ecs.Components.health import Health
 from Game.Ecs.Components.unitStats import UnitStats
+from Game.Ecs.Components.pyramidLevel import PyramidLevel
+
+
+# Configuration par difficulté
+DIFFICULTY_CONFIG = {
+    "easy": {
+        "income_mult": 0.5,
+        "spawn_interval": 7.0,
+        "upgrade_chance": 0.05,
+        "weights": {"S": 0.70, "M": 0.25, "L": 0.05},
+        "max_units": 15,
+        "start_money_mult": 0.5,
+    },
+    "medium": {
+        "income_mult": 1.0,
+        "spawn_interval": 5.0,
+        "upgrade_chance": 0.15,
+        "weights": {"S": 0.50, "M": 0.35, "L": 0.15},
+        "max_units": 25,
+        "start_money_mult": 1.0,
+    },
+    "hard": {
+        "income_mult": 1.5,
+        "spawn_interval": 3.5,
+        "upgrade_chance": 0.25,
+        "weights": {"S": 0.35, "M": 0.40, "L": 0.25},
+        "max_units": 35,
+        "start_money_mult": 1.2,
+    },
+    "extreme": {
+        "income_mult": 2.0,
+        "spawn_interval": 2.5,
+        "upgrade_chance": 0.40,
+        "weights": {"S": 0.25, "M": 0.40, "L": 0.35},
+        "max_units": 50,
+        "start_money_mult": 1.5,
+    },
+}
 
 
 class EnemySpawnerSystem(esper.Processor):
     """
-    Spawn automatique côté ennemi (SANS IA décisionnelle).
-
-    Objectif SAÉ :
-    - Pas de stratégie/adaptation : on spawn sur timer + difficulté qui monte avec le temps.
-    - Les unités sont créées via EntityFactory.create_unit() pour respecter strictement :
-        C = kP
-        V + B = constante
-        HP = B + 1  (=> destruction n*P > B)
-
-    Le mouvement est ensuite géré par LaneRouteSystem + NavigationSystem.
+    IA ennemie avec difficulté configurable.
+    
+    Fonctionnalités:
+    - Revenus proportionnels à la difficulté (même base que joueur × multiplicateur)
+    - Spawn aléatoire sur les 3 lanes
+    - Choix aléatoire des unités (pondéré par difficulté)
+    - Upgrade automatique de la pyramide
     """
 
     def __init__(
@@ -36,6 +80,7 @@ class EnemySpawnerSystem(esper.Processor):
         *,
         lanes_y: list[int] | None = None,
         match_seed: int = 0,
+        difficulty: str = "medium",
     ):
         super().__init__()
         self.factory = factory
@@ -43,45 +88,46 @@ class EnemySpawnerSystem(esper.Processor):
         self.player_pyramid_eid = int(player_pyramid_eid)
         self.enemy_pyramid_eid = int(enemy_pyramid_eid)
         self.nav_grid = nav_grid
-
+        self.difficulty = difficulty if difficulty in DIFFICULTY_CONFIG else "medium"
+        
         self.lanes_y = list(lanes_y) if lanes_y else None
         self.rng = random.Random(int(match_seed) + 424242)
 
-        # timings
-        self.start_delay = 3.0
-        self.spawn_interval = 5.0
-
-        # burst
-        self.burst_count = 1
-        self.burst_spacing = 0.25
-
-        # pondérations
-        self.weights = {"S": 0.60, "M": 0.30, "L": 0.10}
-
-        # ✅ économie ennemie (SAÉ)
-        econ = self.balance.get("economy", {})
+        # Charger config difficulté
+        cfg = DIFFICULTY_CONFIG[self.difficulty]
+        
+        # Économie - même base que le joueur × multiplicateur
         pyr = self.balance.get("pyramid", {})
-        diff = self.balance.get("difficulty", {})
-
-        self.enemy_start_money = float(econ.get("starting_money", 100.0)) * 0.60
-
-        self.enemy_income_per_sec = float(econ.get("enemy_income_per_sec", pyr.get("income_base", 2.0)))
-        self.enemy_income_per_sec *= float(econ.get("enemy_income_multiplier", 0.85))
-
-        # ✅ Limite max d'unités ennemies (évite lag)
-        self.max_enemy_units = int(diff.get("max_enemy_units", 30))
-
-        # état
+        econ = self.balance.get("economy", {})
+        
+        player_income = float(pyr.get("income_base", 2.5))
+        self.income_mult = cfg["income_mult"]
+        self.enemy_income_per_sec = player_income * self.income_mult
+        
+        player_start = float(econ.get("starting_money", 120.0))
+        self.enemy_start_money = player_start * cfg["start_money_mult"]
+        
+        # Spawn
+        self.spawn_interval = cfg["spawn_interval"]
+        self.weights = cfg["weights"]
+        self.max_enemy_units = cfg["max_units"]
+        
+        # Upgrade
+        self.upgrade_chance = cfg["upgrade_chance"]
+        self.upgrade_cooldown = 0.0
+        self.upgrade_check_interval = 3.0  # Vérifie toutes les 3 secondes
+        
+        # Coûts d'upgrade (depuis balance)
+        self.upgrade_costs = pyr.get("upgrade_costs", [100, 125, 150, 175, 200])
+        self.max_pyramid_level = int(pyr.get("level_max", 5))
+        
+        # Timers
+        self.start_delay = 3.0
         self.timer = 0.0
         self.wave_index = 0
-        self._burst_left = 0
-        self._burst_timer = 0.0
-
+        
         self.last_message = ""
 
-    # ---------------------------
-    # helpers
-    # ---------------------------
     def _lane_centers(self) -> list[int]:
         if self.lanes_y and len(self.lanes_y) >= 3:
             return [int(self.lanes_y[0]), int(self.lanes_y[1]), int(self.lanes_y[2])]
@@ -124,69 +170,121 @@ class EnemySpawnerSystem(esper.Processor):
 
     def _ensure_enemy_wallet(self):
         if not esper.has_component(self.enemy_pyramid_eid, Wallet):
-            esper.add_component(self.enemy_pyramid_eid, Wallet(solde=max(0.0, float(self.enemy_start_money))))
+            esper.add_component(self.enemy_pyramid_eid, Wallet(solde=max(0.0, self.enemy_start_money)))
 
     def _enemy_income_tick(self, dt: float):
+        """Ajoute les revenus passifs à l'ennemi."""
         self._ensure_enemy_wallet()
         try:
-            w = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
-            w.solde += float(self.enemy_income_per_sec) * float(dt)
+            wallet = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
+            
+            # Bonus d'income si pyramide upgradée (comme le joueur)
+            income_bonus = 1.0
+            if esper.has_component(self.enemy_pyramid_eid, PyramidLevel):
+                level = esper.component_for_entity(self.enemy_pyramid_eid, PyramidLevel).level
+                income_mult = float(self.balance.get("pyramid", {}).get("income_mult", 1.25))
+                income_bonus = income_mult ** (level - 1)
+            
+            wallet.solde += self.enemy_income_per_sec * income_bonus * dt
         except Exception:
             pass
 
-    def _pick_unit_key(self) -> str:
-        keys = ["S", "M", "L"]
-        w = [float(self.weights.get(k, 0.0)) for k in keys]
-        if sum(w) <= 0.0:
-            return "S"
-        return self.rng.choices(keys, weights=w, k=1)[0]
-
-    def _pick_lane_idx(self) -> int:
-        if self.wave_index % 4 == 0:
-            return 1
-        return int(self.rng.choice([0, 1, 2]))
-
-    def hud_line(self) -> str:
-        nxt = max(0.0, (self.spawn_interval - self.timer)) if self._burst_left <= 0 else max(0.0, self.burst_spacing - self._burst_timer)
-        return f"Enemy waves: {self.wave_index} | next: {nxt:.1f}s | money: {self._enemy_money():.1f}"
-
-    def _enemy_money(self) -> float:
+    def _get_enemy_money(self) -> float:
         try:
-            w = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
-            return float(w.solde)
+            wallet = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
+            return float(wallet.solde)
         except Exception:
             return 0.0
 
+    def _get_enemy_pyramid_level(self) -> int:
+        try:
+            if esper.has_component(self.enemy_pyramid_eid, PyramidLevel):
+                return esper.component_for_entity(self.enemy_pyramid_eid, PyramidLevel).level
+        except Exception:
+            pass
+        return 1
+
+    def _try_upgrade_pyramid(self):
+        """Tente d'upgrader la pyramide ennemie."""
+        try:
+            level = self._get_enemy_pyramid_level()
+            
+            if level >= self.max_pyramid_level:
+                return False
+            
+            # Coût de l'upgrade
+            cost_idx = min(level - 1, len(self.upgrade_costs) - 1)
+            cost = self.upgrade_costs[cost_idx]
+            
+            money = self._get_enemy_money()
+            
+            # L'IA upgrade si elle a assez d'argent ET si le random le permet
+            if money >= cost and self.rng.random() < self.upgrade_chance:
+                wallet = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
+                wallet.solde -= cost
+                
+                if esper.has_component(self.enemy_pyramid_eid, PyramidLevel):
+                    pyr_level = esper.component_for_entity(self.enemy_pyramid_eid, PyramidLevel)
+                    pyr_level.level += 1
+                    
+                    # Augmenter les HP de la pyramide
+                    if esper.has_component(self.enemy_pyramid_eid, Health):
+                        hp = esper.component_for_entity(self.enemy_pyramid_eid, Health)
+                        hp_bonus = 100  # +100 HP par niveau
+                        hp.hp_max += hp_bonus
+                        hp.hp += hp_bonus
+                    
+                    self.last_message = f"Enemy upgraded pyramid to Lv.{pyr_level.level}!"
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def _pick_unit_key(self) -> str:
+        """Choix aléatoire pondéré de l'unité."""
+        keys = ["S", "M", "L"]
+        weights = [float(self.weights.get(k, 0.33)) for k in keys]
+        if sum(weights) <= 0.0:
+            return self.rng.choice(keys)
+        return self.rng.choices(keys, weights=weights, k=1)[0]
+
+    def _pick_lane_idx(self) -> int:
+        """Choix complètement aléatoire de la lane."""
+        return self.rng.randint(0, 2)
+
     def _count_enemy_units(self) -> int:
-        """Compte les unités ennemies vivantes (team 2)."""
+        """Compte les unités ennemies vivantes."""
         count = 0
         for eid, (team, hp, stats) in esper.get_components(Team, Health, UnitStats):
             if team.id == 2 and not hp.is_dead:
                 count += 1
         return count
 
-    # ---------------------------
-    # spawn
-    # ---------------------------
     def _spawn_one(self):
-        # Vérifier limite d'unités ennemies (évite lag)
+        """Spawn une unité ennemie."""
+        # Vérifier limite
         if self._count_enemy_units() >= self.max_enemy_units:
             self.last_message = f"Enemy: max units ({self.max_enemy_units})"
-            return
+            return False
         
         self._ensure_enemy_wallet()
-        enemy_wallet = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
+        
+        try:
+            wallet = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
+        except Exception:
+            return False
 
+        # Choix aléatoire de l'unité
         unit_key = self._pick_unit_key()
-        st = self.factory.compute_unit_stats(unit_key)
+        stats = self.factory.compute_unit_stats(unit_key)
 
-        if enemy_wallet.solde < float(st.cost):
+        if wallet.solde < float(stats.cost):
             self.last_message = "Enemy: waiting money"
-            return
+            return False
 
-        enemy_wallet.solde -= float(st.cost)
+        wallet.solde -= float(stats.cost)
 
-        # position pyramide ennemie
+        # Position de spawn
         try:
             et = esper.component_for_entity(self.enemy_pyramid_eid, Transform)
             ex = int(round(et.pos[0]))
@@ -194,17 +292,18 @@ class EnemySpawnerSystem(esper.Processor):
         except Exception:
             ex, ey = (0, 0)
 
+        # Lane aléatoire
         lane_idx = self._pick_lane_idx()
         lane_y = int(self._lane_centers()[lane_idx])
 
-        # ✅ spawn "miroir" du joueur : 1 case à gauche de la pyramide ennemie sur la lane
         sx = ex - 1
         sy = lane_y
 
         found = self._find_walkable_near(int(sx), int(sy), max_r=12)
         if not found:
             self.last_message = "Enemy: no spawn found"
-            return
+            wallet.solde += float(stats.cost)  # Rembourser
+            return False
 
         gx, gy = found
 
@@ -215,8 +314,6 @@ class EnemySpawnerSystem(esper.Processor):
         if not esper.has_component(ent, PathProgress):
             esper.add_component(ent, PathProgress(index=0))
         
-        # CORRECTION: Assigner le composant Lane avec l'index choisi
-        # Cela garantit que l'ennemi reste sur la bonne lane même si spawn décalé
         esper.add_component(ent, Lane(index=lane_idx, y_position=float(lane_y)))
 
         try:
@@ -226,31 +323,37 @@ class EnemySpawnerSystem(esper.Processor):
             pass
 
         self.last_message = f"Enemy spawn {unit_key} (lane {lane_idx + 1})"
+        return True
+
+    def hud_line(self) -> str:
+        """Ligne de debug pour le HUD."""
+        nxt = max(0.0, self.spawn_interval - self.timer)
+        money = self._get_enemy_money()
+        level = self._get_enemy_pyramid_level()
+        diff_name = {"easy": "Facile", "medium": "Moyen", "hard": "Difficile", "extreme": "Extreme"}
+        return f"Ennemi: {money:.0f} | Nv.{level} | Vague {self.wave_index} | {diff_name.get(self.difficulty, self.difficulty)}"
 
     def process(self, dt: float):
         if dt <= 0:
             return
 
-        # ✅ prod/sec ennemi en continu
+        # Revenus passifs
         self._enemy_income_tick(dt)
 
+        # Délai de départ
         if self.start_delay > 0:
             self.start_delay = max(0.0, self.start_delay - dt)
             return
 
-        if self._burst_left > 0:
-            self._burst_timer += dt
-            if self._burst_timer >= self.burst_spacing:
-                self._burst_timer = 0.0
-                self._spawn_one()
-                self._burst_left -= 1
-            return
+        # Vérifier upgrade périodiquement
+        self.upgrade_cooldown -= dt
+        if self.upgrade_cooldown <= 0:
+            self.upgrade_cooldown = self.upgrade_check_interval
+            self._try_upgrade_pyramid()
 
+        # Spawn timer
         self.timer += dt
         if self.timer >= self.spawn_interval:
             self.timer = 0.0
             self.wave_index += 1
-
             self._spawn_one()
-            self._burst_left = max(0, self.burst_count - 1)
-            self._burst_timer = 0.0

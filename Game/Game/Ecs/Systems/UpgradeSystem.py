@@ -5,7 +5,6 @@ import esper
 from Game.Ecs.Components.wallet import Wallet
 from Game.Ecs.Components.incomeRate import IncomeRate
 from Game.Ecs.Components.pyramidLevel import PyramidLevel
-from Game.Ecs.Components.upgradeable import Upgradeable
 from Game.Ecs.Components.health import Health
 
 
@@ -14,7 +13,7 @@ class UpgradeSystem:
     Upgrade pyramide (niveau 1->5) :
     - +50 HP max par niveau
     - production (IncomeRate) x1.25 par niveau
-    - coût augmente à chaque upgrade
+    - coûts définis dans balance.json
 
     IMPORTANT :
     - Esper appelle .process(dt)
@@ -26,16 +25,26 @@ class UpgradeSystem:
         max_level: int = 5,
         hp_bonus_per_level: int = 50,
         prod_multiplier: float = 1.25,
-        cost_multiplier: float = 1.6,
+        upgrade_costs: list = None,
         base_cost: float = 100.0,
+        cost_multiplier: float = 1.6,  # Gardé pour compatibilité
     ):
         self.player_pyramid_eid = int(player_pyramid_eid)
 
         self.max_level = int(max_level)
         self.hp_bonus_per_level = int(hp_bonus_per_level)
         self.prod_multiplier = float(prod_multiplier)
-        self.cost_multiplier = float(cost_multiplier)
-        self.base_cost = float(base_cost)
+        
+        # Utiliser les coûts fournis ou générer une liste par défaut
+        if upgrade_costs and len(upgrade_costs) > 0:
+            self.upgrade_costs = [float(c) for c in upgrade_costs]
+        else:
+            # Fallback : générer avec multiplicateur
+            self.upgrade_costs = []
+            cost = float(base_cost)
+            for i in range(max_level - 1):
+                self.upgrade_costs.append(cost)
+                cost = math.ceil(cost * cost_multiplier)
 
         self._requested = False
         self.last_message = ""
@@ -64,11 +73,12 @@ class UpgradeSystem:
         except Exception:
             esper.add_component(eid, PyramidLevel(level=1))
 
-        # Upgradeable
-        try:
-            esper.component_for_entity(eid, Upgradeable)
-        except Exception:
-            esper.add_component(eid, Upgradeable(upgrade_cost=self.base_cost))
+    def _get_upgrade_cost(self, current_level: int) -> float:
+        """Retourne le coût pour passer au niveau suivant."""
+        idx = current_level - 1  # niveau 1 -> index 0, niveau 2 -> index 1, etc.
+        if 0 <= idx < len(self.upgrade_costs):
+            return float(self.upgrade_costs[idx])
+        return 99999.0  # Coût impossible si hors limites
 
     def process(self, dt: float):
         if not self._requested:
@@ -81,14 +91,13 @@ class UpgradeSystem:
 
         wallet = esper.component_for_entity(eid, Wallet)
         level = esper.component_for_entity(eid, PyramidLevel)
-        upg = esper.component_for_entity(eid, Upgradeable)
         income = esper.component_for_entity(eid, IncomeRate)
 
         if level.level >= self.max_level:
-            self.last_message = "Pyramide déjà au niveau max."
+            self.last_message = "Pyramide deja au niveau max."
             return
 
-        cost = float(upg.upgrade_cost)
+        cost = self._get_upgrade_cost(level.level)
         if wallet.solde < cost:
             self.last_message = f"Pas assez de coups de fouet (besoin: {int(cost)})."
             return
@@ -111,9 +120,6 @@ class UpgradeSystem:
 
         # production x1.25
         income.rate = float(income.rate) * self.prod_multiplier
-
-        # coût suivant
-        upg.upgrade_cost = float(math.ceil(cost * self.cost_multiplier))
 
         self.last_message = f"Upgrade pyramide -> niveau {level.level}."
 

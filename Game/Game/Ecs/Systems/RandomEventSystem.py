@@ -21,11 +21,12 @@ class RandomEventSystem(esper.Processor):
     Gère les événements aléatoires pendant la partie.
     """
 
-    def __init__(self, nav_grid, player_pyramid_eid: int, enemy_pyramid_eid: int):
+    def __init__(self, nav_grid, player_pyramid_eid: int, enemy_pyramid_eid: int, on_terrain_change=None):
         super().__init__()
         self.nav_grid = nav_grid
         self.player_pyramid_eid = int(player_pyramid_eid)
         self.enemy_pyramid_eid = int(enemy_pyramid_eid)
+        self.on_terrain_change = on_terrain_change  # Callback pour recalculer les lanes
         
         # Timing
         self.time_since_last_event = 0.0
@@ -91,7 +92,7 @@ class RandomEventSystem(esper.Processor):
         self.active_event = "sandstorm"
         self.event_timer = self.event_duration
         self.message_timer = 3.0
-        self.current_message = "⛈️ TEMPÊTE DE SABLE! Terrain modifié!"
+        self.current_message = "TEMPETE DE SABLE! Terrain modifie!"
         
         # Sauvegarder et échanger les multiplicateurs
         if hasattr(self.nav_grid, 'mult'):
@@ -108,6 +109,10 @@ class RandomEventSystem(esper.Processor):
                     elif 0 < m < 1.0:  # Dusty → Open
                         self.nav_grid.mult[y][x] = 1.0
                     # Interdit (0) reste interdit
+            
+            # Notifier que le terrain a changé → recalculer les lanes
+            if self.on_terrain_change:
+                self.on_terrain_change()
 
     def _start_locusts(self):
         """Nuée de sauterelles : 15 dégâts à toutes les troupes."""
@@ -151,6 +156,10 @@ class RandomEventSystem(esper.Processor):
                 for x in range(w):
                     self.nav_grid.mult[y][x] = self.original_mults[y][x]
             self.original_mults = None
+            
+            # Notifier que le terrain a changé → recalculer les lanes
+            if self.on_terrain_change:
+                self.on_terrain_change()
             
         elif self.active_event == "whip_bonus" and self.bonus_team:
             # Retirer bonus via multiplier (reset propre)

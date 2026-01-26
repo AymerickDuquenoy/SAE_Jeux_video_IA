@@ -39,7 +39,6 @@ from Game.Ecs.Components.velocity import Velocity
 from Game.Ecs.Components.pyramidLevel import PyramidLevel
 
 from Game.Ecs.Systems.EnemySpawnerSystem import EnemySpawnerSystem
-from Game.Ecs.Systems.DifficultySystem import DifficultySystem
 
 from Game.Ecs.Systems.LaneRouteSystem import LaneRouteSystem
 from Game.Services.terrain_randomizer import apply_random_terrain
@@ -238,16 +237,17 @@ class GameApp:
         self.camera_y = 0.0
 
         # UI / state machine
-        self.state = "menu"  # menu/options/controls/playing/pause/game_over
+        self.state = "menu"  # menu/options/controls/difficulty_select/playing/pause/game_over
         self.state_return = "menu"
         self.game_over_text = ""
+        
+        # Difficulté choisie
+        self.selected_difficulty = "medium"  # easy/medium/hard/extreme
 
-        # options (OFF par défaut)
-        self.opt_show_lanes = False
+        # options
         self.opt_show_terrain = False
-        self.opt_show_nav = False
         self.opt_show_paths = False
-        self.opt_show_advhud = False
+        self.opt_show_lanes = False
 
         # ✅ lane sélectionnée (0..2) -> lane2 par défaut
         self.selected_lane_idx = 1
@@ -270,7 +270,8 @@ class GameApp:
         self.enemy_pyr_pos = (0, 0)
 
         # chemins lane (3 lanes) => affichage réaliste
-        self.lane_paths = [[], [], []]
+        self.lane_paths = [[], [], []]        # Joueur → Ennemi
+        self.lane_paths_enemy = [[], [], []]  # Ennemi → Joueur
 
         # preview lane (court)
         self.lane_flash_timer = 0.0
@@ -292,12 +293,10 @@ class GameApp:
         self.btn_pause_options = None
         self.btn_menu = None
 
-        # toggles
-        self.tog_lanes = None
+        # toggle options
         self.tog_terrain = None
-        self.tog_nav = None
         self.tog_paths = None
-        self.tog_advhud = None
+        self.tog_lanes = None
 
         # lane selector HUD
         self.lane_btn_rects = []
@@ -407,12 +406,10 @@ class GameApp:
         # charge une map pour l’écran menu (juste visuel)
         self._load_map_for_visual(random.choice(self.map_files))
 
-        # ✅ sécurité : options OFF au boot (au cas où ui.py a un comportement bizarre)
-        self.opt_show_lanes = False
+        # Options au boot
         self.opt_show_terrain = False
-        self.opt_show_nav = False
         self.opt_show_paths = False
-        self.opt_show_advhud = False
+        self.opt_show_lanes = False
 
         # ✅ lane par défaut = 2 au boot
         self.selected_lane_idx = 1
@@ -458,17 +455,25 @@ class GameApp:
         self.btn_pause_options = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 1, w, h), "Options", self.font)
         self.btn_menu = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 2, w, h), "Menu", self.font)
 
+        # Boutons de sélection de difficulté
+        diff_y = cy - 60
+        diff_h = 50
+        diff_gap = 12
+        self.btn_diff_easy = UIMenuButton(pygame.Rect(cx - w // 2, diff_y, w, diff_h), "Facile", self.font)
+        self.btn_diff_medium = UIMenuButton(pygame.Rect(cx - w // 2, diff_y + (diff_h + diff_gap), w, diff_h), "Moyen", self.font)
+        self.btn_diff_hard = UIMenuButton(pygame.Rect(cx - w // 2, diff_y + (diff_h + diff_gap) * 2, w, diff_h), "Difficile", self.font)
+        self.btn_diff_extreme = UIMenuButton(pygame.Rect(cx - w // 2, diff_y + (diff_h + diff_gap) * 3, w, diff_h), "Extreme", self.font)
+
         ox = cx - 320
         oy = 130
         tw = 640
         th = 54
         tg = 16
 
-        self.tog_lanes = UIToggle(pygame.Rect(ox, oy + (th + tg) * 0, tw, th), "Afficher les lanes", self.font, self.opt_show_lanes)
-        self.tog_terrain = UIToggle(pygame.Rect(ox, oy + (th + tg) * 1, tw, th), "Afficher terrain (open/dusty/interdit)", self.font, self.opt_show_terrain)
-        self.tog_nav = UIToggle(pygame.Rect(ox, oy + (th + tg) * 2, tw, th), "Debug nav (zones interdites)", self.font, self.opt_show_nav)
-        self.tog_paths = UIToggle(pygame.Rect(ox, oy + (th + tg) * 3, tw, th), "Debug paths (chemins)", self.font, self.opt_show_paths)
-        self.tog_advhud = UIToggle(pygame.Rect(ox, oy + (th + tg) * 4, tw, th), "HUD avancée", self.font, self.opt_show_advhud)
+        # Options de jeu (3 toggles)
+        self.tog_lanes = UIToggle(pygame.Rect(ox, oy, tw, th), "Afficher les lanes", self.font, self.opt_show_lanes)
+        self.tog_terrain = UIToggle(pygame.Rect(ox, oy + (th + tg), tw, th), "Afficher les zones de terrain", self.font, self.opt_show_terrain)
+        self.tog_paths = UIToggle(pygame.Rect(ox, oy + (th + tg) * 2, tw, th), "Afficher les chemins des unites", self.font, self.opt_show_paths)
 
         # In-game lane buttons (repositionnés sous le nouveau HUD)
         bx = 12
@@ -481,12 +486,10 @@ class GameApp:
             for i in range(3)
         ]
 
-        # sécurité : on resync (au cas où ton ui.py gère différemment)
+        # sécurité : on resync
         self._sync_toggle_value(self.tog_lanes, self.opt_show_lanes)
         self._sync_toggle_value(self.tog_terrain, self.opt_show_terrain)
-        self._sync_toggle_value(self.tog_nav, self.opt_show_nav)
         self._sync_toggle_value(self.tog_paths, self.opt_show_paths)
-        self._sync_toggle_value(self.tog_advhud, self.opt_show_advhud)
 
     # ----------------------------
     # Map loading
@@ -838,13 +841,11 @@ class GameApp:
 
     def _compute_lane_route_path(self, lane_idx: int) -> list[tuple[int, int]]:
         """
-        Lane réelle = chemin complet :
-        ANCRE (haut/droite/bas de la pyramide) -> entrée lane -> sortie lane -> case d'attaque lane (haut/milieu/bas)
-
-        Objectif : la ligne part "collée" à la pyramide :
-        - lane 1 : haut de la pyramide
-        - lane 2 : droite de la pyramide
-        - lane 3 : bas de la pyramide
+        Lane = chemin A* COMPLET de pyramide joueur à pyramide ennemie.
+        
+        - Lane 1 (idx 0): HAUT de pyramide → lane haut → HAUT de pyramide ennemie
+        - Lane 2 (idx 1): MILIEU (droite) de pyramide → lane milieu → MILIEU (gauche) de pyramide ennemie  
+        - Lane 3 (idx 2): BAS de pyramide → lane bas → BAS de pyramide ennemie
         """
         if not self.nav_grid:
             return []
@@ -855,51 +856,52 @@ class GameApp:
         px = int(self.player_pyr_pos[0])
         py = int(self.player_pyr_pos[1])
         ex = int(self.enemy_pyr_pos[0])
+        ey = int(self.enemy_pyr_pos[1])
 
         h = int(getattr(self.nav_grid, "height", 0))
         w = int(getattr(self.nav_grid, "width", 0))
 
         def clamp_xy(x: int, y: int) -> tuple[int, int]:
-            if w > 0:
-                x = self._clamp(x, 0, w - 1)
-            if h > 0:
-                y = self._clamp(y, 0, h - 1)
+            x = max(1, min(w - 2, int(x)))
+            y = max(1, min(h - 2, int(y)))
             return (x, y)
 
-        # ✅ ancre de départ "collée" à la pyramide (selon lane)
+        # Ancres selon la lane
         if lane_idx == 0:
-            start_raw = (px, py - 1)      # haut
+            # Lane 1 = HAUT des pyramides
+            start_anchor = clamp_xy(px, py - 1)
+            end_anchor = clamp_xy(ex, ey - 1)
         elif lane_idx == 1:
-            start_raw = (px + 1, py)      # droite
+            # Lane 2 = MILIEU (côtés des pyramides)
+            start_anchor = clamp_xy(px + 1, py)
+            end_anchor = clamp_xy(ex - 1, ey)
         else:
-            start_raw = (px, py + 1)      # bas
+            # Lane 3 = BAS des pyramides
+            start_anchor = clamp_xy(px, py + 1)
+            end_anchor = clamp_xy(ex, ey + 1)
 
-        start_raw = clamp_xy(int(start_raw[0]), int(start_raw[1]))
+        # Points d'entrée/sortie sur la lane horizontale
+        entry_point = clamp_xy(px + 1, lane_y)
+        exit_point = clamp_xy(ex - 1, lane_y)
 
-        # entrée lane = à droite de ta base, sur la lane sélectionnée
-        entry_raw = (px + 1, lane_y)
-        entry_raw = clamp_xy(int(entry_raw[0]), int(entry_raw[1]))
+        # Trouver des cases walkable proches
+        s = self._find_walkable_near(start_anchor[0], start_anchor[1], max_r=12)
+        e = self._find_walkable_near(entry_point[0], entry_point[1], max_r=12)
+        x = self._find_walkable_near(exit_point[0], exit_point[1], max_r=12)
+        g = self._find_walkable_near(end_anchor[0], end_anchor[1], max_r=12)
 
-        # milieu proche ennemi sur la lane
-        mid_raw = (ex - 1, lane_y)
-        mid_raw = clamp_xy(int(mid_raw[0]), int(mid_raw[1]))
-
-        # fin = case d'attaque lane (haut/milieu/bas)
-        end_raw = self._attack_cell_for_lane(1, lane_idx)
-        end_raw = clamp_xy(int(end_raw[0]), int(end_raw[1]))
-
-        s = self._find_walkable_near(int(start_raw[0]), int(start_raw[1]), max_r=12)
-        e = self._find_walkable_near(int(entry_raw[0]), int(entry_raw[1]), max_r=12)
-        m = self._find_walkable_near(int(mid_raw[0]), int(mid_raw[1]), max_r=12)
-        g = self._find_walkable_near(int(end_raw[0]), int(end_raw[1]), max_r=12)
-
-        if not s or not e or not m or not g:
+        if not s or not e or not x or not g:
             return []
 
+        # Construire le chemin en 3 segments
+        # 1. Ancre joueur → Entrée lane
         p1 = self._astar_preview(s, e)
-        p2 = self._astar_preview(e, m)
-        p3 = self._astar_preview(m, g)
+        # 2. Entrée lane → Sortie lane (parcours horizontal)
+        p2 = self._astar_preview(e, x)
+        # 3. Sortie lane → Ancre ennemie
+        p3 = self._astar_preview(x, g)
 
+        # Assembler le chemin complet
         out = []
         if p1:
             out += p1
@@ -908,13 +910,30 @@ class GameApp:
         if p3:
             out += p3[1:] if out else p3
 
-        if out:
-            if tuple(out[0]) != tuple(start_raw):
-                out.insert(0, start_raw)
-        else:
-            out = [start_raw]
-
         return out
+
+    def _recalculate_all_lanes(self):
+        """Recalcule tous les chemins de lanes (joueur ET ennemi = même chemin, sens inverse)."""
+        if not self.nav_grid:
+            return
+        
+        # Chemins du joueur (gauche → droite) calculés par A*
+        self.lane_paths = [
+            self._compute_lane_route_path(0),
+            self._compute_lane_route_path(1),
+            self._compute_lane_route_path(2),
+        ]
+        
+        # Chemins de l'ennemi = MÊME chemin, mais inversé (droite → gauche)
+        self.lane_paths_enemy = [
+            list(reversed(self.lane_paths[0])) if self.lane_paths[0] else [],
+            list(reversed(self.lane_paths[1])) if self.lane_paths[1] else [],
+            list(reversed(self.lane_paths[2])) if self.lane_paths[2] else [],
+        ]
+        
+        # Informer LaneRouteSystem des nouveaux chemins
+        if hasattr(self, 'lane_route_system') and self.lane_route_system:
+            self.lane_route_system.set_lane_paths(self.lane_paths)
 
     def _flash_lane(self):
         self.lane_flash_timer = float(self.lane_flash_duration)
@@ -962,6 +981,7 @@ class GameApp:
         self.lane_flash_timer = 0.0
         self.lane_preview_path = []
         self.lane_paths = [[], [], []]
+        self.lane_paths_enemy = [[], [], []]
 
         self._known_units = set()
 
@@ -1072,12 +1092,8 @@ class GameApp:
         # ✅ connectors lanes haut/milieu/bas + cases d’attaque walkable
         self._carve_pyramid_connectors()
 
-        # 6) pré-calcul des 3 lanes réelles
-        self.lane_paths = [
-            self._compute_lane_route_path(0),
-            self._compute_lane_route_path(1),
-            self._compute_lane_route_path(2),
-        ]
+        # 6) pré-calcul des 3 lanes (joueur ET ennemi)
+        self._recalculate_all_lanes()
 
         # 7) world propre par match
         self.world = World(name=f"match_{self.match_index}")
@@ -1118,9 +1134,15 @@ class GameApp:
         default_income = float(self.balance.get("pyramid", {}).get("income_base", 2.0))
         self.economy_system = EconomySystem(player_pyramid_eid=self.player_pyramid_eid, default_income=default_income)
 
-        upgrade_costs = self.balance.get("pyramid", {}).get("upgrade_costs", [100.0])
-        base_upgrade_cost = float(upgrade_costs[0]) if isinstance(upgrade_costs, list) and len(upgrade_costs) else 100.0
-        self.upgrade_system = UpgradeSystem(player_pyramid_eid=self.player_pyramid_eid, base_cost=base_upgrade_cost)
+        # UpgradeSystem avec les coûts de balance.json
+        pyramid_cfg = self.balance.get("pyramid", {})
+        upgrade_costs = pyramid_cfg.get("upgrade_costs", [100, 125, 150, 175, 200])
+        max_level = int(pyramid_cfg.get("level_max", 5))
+        self.upgrade_system = UpgradeSystem(
+            player_pyramid_eid=self.player_pyramid_eid,
+            max_level=max_level,
+            upgrade_costs=upgrade_costs
+        )
 
         self.astar_system = AStarPathfindingSystem(self.nav_grid)
         self.terrain_system = TerrainEffectSystem(self.nav_grid)
@@ -1168,25 +1190,18 @@ class GameApp:
 
         self.cleanup_system = CleanupSystem(protected_entities=pyramid_ids)
 
-        # lane route gameplay
+        # lane route gameplay - utilise les chemins pré-calculés
         self.lane_route_system = LaneRouteSystem(
-            self.nav_grid,
             self.lanes_y,
-            self.player_pyr_pos,
-            self.enemy_pyr_pos,
             pyramid_ids=pyramid_ids
         )
+        # Passer les chemins pré-calculés
+        self.lane_route_system.set_lane_paths(self.lane_paths)
 
-        # ✅ DIFFICULTY + ENEMY SPAWNER
-        try:
-            self.difficulty_system = DifficultySystem(self.balance)
-        except TypeError:
-            try:
-                self.difficulty_system = DifficultySystem()
-            except Exception:
-                self.difficulty_system = None
+        # ✅ Plus de DifficultySystem dynamique - la difficulté est choisie au menu
+        self.difficulty_system = None
 
-        # ✅ FIX: Créer EnemySpawnerSystem TOUJOURS (indépendamment de difficulty)
+        # ✅ EnemySpawnerSystem avec la difficulté choisie
         self.enemy_spawner_system = None
         try:
             self.enemy_spawner_system = EnemySpawnerSystem(
@@ -1196,8 +1211,9 @@ class GameApp:
                 self.enemy_pyramid_eid,
                 self.nav_grid,
                 lanes_y=self.lanes_y,
+                difficulty=self.selected_difficulty,
             )
-            print("[OK] EnemySpawnerSystem created")
+            print(f"[OK] EnemySpawnerSystem created (difficulty: {self.selected_difficulty})")
         except Exception as e:
             print(f"[WARN] EnemySpawnerSystem failed: {e}")
             self.enemy_spawner_system = None
@@ -1207,7 +1223,8 @@ class GameApp:
             self.random_event_system = RandomEventSystem(
                 self.nav_grid,
                 self.player_pyramid_eid,
-                self.enemy_pyramid_eid
+                self.enemy_pyramid_eid,
+                on_terrain_change=self._recalculate_all_lanes  # Recalculer les lanes au sandstorm
             )
             print("[OK] RandomEventSystem created")
         except Exception as e:
@@ -1493,18 +1510,31 @@ class GameApp:
         pygame.draw.circle(surface, (255, 255, 200), (cx, y + 5), 3)
 
     def _draw_lane_paths_all(self):
-        if not self.lane_paths:
-            return
-
+        """Affiche les 3 lanes du joueur (cyan) et les 3 lanes de l'ennemi (orange)."""
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-
-        for path in self.lane_paths:
-            if not path or len(path) < 2:
-                continue
-
-            pts = [self._grid_to_screen(x, y) for (x, y) in path]
-            pygame.draw.lines(overlay, (240, 240, 240, 28), False, pts, 3)
-
+        
+        # Lanes du joueur (cyan)
+        if self.lane_paths:
+            for path in self.lane_paths:
+                if not path or len(path) < 2:
+                    continue
+                pts = [self._grid_to_screen(x, y) for (x, y) in path]
+                pygame.draw.lines(overlay, (80, 200, 255, 120), False, pts, 3)
+                # Points de départ et fin
+                pygame.draw.circle(overlay, (80, 200, 255, 180), pts[0], 5)
+                pygame.draw.circle(overlay, (80, 200, 255, 180), pts[-1], 5, 2)
+        
+        # Lanes de l'ennemi (orange)
+        if self.lane_paths_enemy:
+            for path in self.lane_paths_enemy:
+                if not path or len(path) < 2:
+                    continue
+                pts = [self._grid_to_screen(x, y) for (x, y) in path]
+                pygame.draw.lines(overlay, (255, 140, 80, 120), False, pts, 3)
+                # Points de départ et fin
+                pygame.draw.circle(overlay, (255, 140, 80, 180), pts[0], 5)
+                pygame.draw.circle(overlay, (255, 140, 80, 180), pts[-1], 5, 2)
+        
         self.screen.blit(overlay, (0, 0))
 
     def _draw_lane_preview_path(self):
@@ -1569,16 +1599,26 @@ class GameApp:
                     pygame.draw.rect(self.screen, (220, 50, 50), rect, 1)
 
     def _debug_draw_paths(self):
+        """Affiche les chemins de toutes les unités avec des couleurs par équipe."""
         if self.world:
             self.world._activate()
 
-        for ent, (t, path) in esper.get_components(Transform, PathComponent):
+        for ent, (t, path, team) in esper.get_components(Transform, PathComponent, Team):
             if not path.noeuds:
                 continue
 
             pts = [self._grid_to_screen(n.x, n.y) for n in path.noeuds]
             if len(pts) >= 2:
-                pygame.draw.lines(self.screen, (30, 30, 30), False, pts, 2)
+                # Couleur selon l'équipe : bleu/cyan pour joueur, rouge/orange pour ennemi
+                if team.id == 1:
+                    color = (80, 200, 255)  # Cyan pour joueur
+                else:
+                    color = (255, 120, 80)  # Orange pour ennemi
+                
+                pygame.draw.lines(self.screen, color, False, pts, 2)
+                
+                # Point de destination
+                pygame.draw.circle(self.screen, color, pts[-1], 4)
 
     def _draw_entities(self):
         from Game.App.sprite_renderer import sprite_renderer
@@ -1961,10 +2001,10 @@ class GameApp:
         )
         l2 = self.font_small.render(f"Temps: {self.match_time:.1f}s | Kills: {self.enemy_kills}", True, (230, 230, 230))
         
-        # ✅ Afficher niveau de difficulté
+        # ✅ Afficher infos IA ennemie
         diff_txt = ""
-        if self.difficulty_system:
-            diff_txt = self.difficulty_system.hud_line()
+        if self.enemy_spawner_system:
+            diff_txt = self.enemy_spawner_system.hud_line()
         l3 = self.font_small.render(diff_txt, True, (255, 200, 100))
         
         self.screen.blit(l1, (x, y))
@@ -2082,12 +2122,9 @@ class GameApp:
     def _open_options(self):
         self.state_return = self.state
         self.state = "options"
-
         self._sync_toggle_value(self.tog_lanes, self.opt_show_lanes)
         self._sync_toggle_value(self.tog_terrain, self.opt_show_terrain)
-        self._sync_toggle_value(self.tog_nav, self.opt_show_nav)
         self._sync_toggle_value(self.tog_paths, self.opt_show_paths)
-        self._sync_toggle_value(self.tog_advhud, self.opt_show_advhud)
 
     def _open_controls(self):
         self.state_return = self.state
@@ -2095,6 +2132,12 @@ class GameApp:
 
     def _return_from_submenu(self):
         self.state = self.state_return if self.state_return else "menu"
+
+    def _start_game_with_difficulty(self):
+        """Démarre une partie avec la difficulté sélectionnée."""
+        self._teardown_match()
+        self._setup_match()
+        self.state = "playing"
 
     # ----------------------------
     # Stats
@@ -2162,9 +2205,7 @@ class GameApp:
                 # MENU
                 if self.state == "menu":
                     if self.btn_play.handle_event(event):
-                        self._teardown_match()
-                        self._setup_match()
-                        self.state = "playing"
+                        self.state = "difficulty_select"
 
                     if self.btn_options.handle_event(event):
                         self._open_options()
@@ -2175,6 +2216,27 @@ class GameApp:
                     if self.btn_quit.handle_event(event):
                         self.running = False
 
+                # DIFFICULTY SELECT
+                elif self.state == "difficulty_select":
+                    if self.btn_back.handle_event(event):
+                        self.state = "menu"
+                    
+                    if self.btn_diff_easy.handle_event(event):
+                        self.selected_difficulty = "easy"
+                        self._start_game_with_difficulty()
+                    
+                    if self.btn_diff_medium.handle_event(event):
+                        self.selected_difficulty = "medium"
+                        self._start_game_with_difficulty()
+                    
+                    if self.btn_diff_hard.handle_event(event):
+                        self.selected_difficulty = "hard"
+                        self._start_game_with_difficulty()
+                    
+                    if self.btn_diff_extreme.handle_event(event):
+                        self.selected_difficulty = "extreme"
+                        self._start_game_with_difficulty()
+
                 # OPTIONS
                 elif self.state == "options":
                     if self.btn_back.handle_event(event):
@@ -2184,12 +2246,8 @@ class GameApp:
                         self.opt_show_lanes = self.tog_lanes.value
                     if self.tog_terrain.handle_event(event):
                         self.opt_show_terrain = self.tog_terrain.value
-                    if self.tog_nav.handle_event(event):
-                        self.opt_show_nav = self.tog_nav.value
                     if self.tog_paths.handle_event(event):
                         self.opt_show_paths = self.tog_paths.value
-                    if self.tog_advhud.handle_event(event):
-                        self.opt_show_advhud = self.tog_advhud.value
 
                 # CONTROLS
                 elif self.state == "controls":
@@ -2289,23 +2347,22 @@ class GameApp:
             if self.state in ("playing", "pause", "game_over") and self.world:
                 self._draw_lane_preview_path()
 
+                # Afficher les lanes (avant le terrain pour mieux voir)
                 if self.opt_show_lanes:
                     self._draw_lane_paths_all()
 
                 if self.opt_show_terrain:
                     self._draw_terrain_overlay()
-                if self.opt_show_nav:
-                    self._debug_draw_forbidden()
-                if self.opt_show_paths:
-                    self._debug_draw_paths()
 
                 self._draw_entities()
+                
+                # Afficher les chemins des unités (par-dessus les entités)
+                if self.opt_show_paths:
+                    self._debug_draw_paths()
                 
                 # Ne pas dessiner le HUD en pause ou game_over
                 if self.state not in ("pause", "game_over"):
                     self._draw_hud_minimal()
-                    if self.opt_show_advhud:
-                        self._draw_hud_advanced()
                     # Minimap en bas à droite
                     self._draw_minimap()
 
@@ -2350,17 +2407,67 @@ class GameApp:
                 self.btn_controls.draw(self.screen)
                 self.btn_quit.draw(self.screen)
 
-            elif self.state == "options":
+            elif self.state == "difficulty_select":
                 # Afficher le fond du menu
                 if self.menu_background:
                     self.screen.blit(self.menu_background, (0, 0))
                 
-                # Panneau flouté derrière les toggles
-                panel_x = self.width // 2 - 340
-                panel_y = 115
-                panel_w = 680
-                panel_h = 380
+                # Titre "Difficulte" en haut de l'écran (comme les autres menus)
+                title_color = (222, 205, 163)
+                title_shadow = (80, 60, 40)
+                
+                title_surf = self.font_title.render("Difficulte", True, title_shadow)
+                title_rect = title_surf.get_rect(center=(self.width // 2 + 3, 63))
+                self.screen.blit(title_surf, title_rect)
+                
+                title_surf = self.font_title.render("Difficulte", True, title_color)
+                title_rect = title_surf.get_rect(center=(self.width // 2, 60))
+                self.screen.blit(title_surf, title_rect)
+                
+                # Panneau pour les boutons uniquement
+                panel_w, panel_h = 360, 380
+                panel_x = self.width // 2 - panel_w // 2
+                panel_y = self.height // 2 - panel_h // 2 + 30
                 self._draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
+                
+                # Bordure dorée
+                gold_dark = (139, 119, 77)
+                pygame.draw.rect(self.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=10)
+                
+                # Configuration des boutons
+                btn_w = 260
+                btn_h = 45
+                btn_x = self.width // 2 - btn_w // 2
+                btn_y_start = panel_y + 25
+                btn_gap = 85
+                
+                # Données des difficultés
+                diff_data = [
+                    ("easy", "Facile", "Revenus ennemi x0.5", (100, 200, 100)),
+                    ("medium", "Moyen", "Revenus ennemi x1.0", (200, 200, 100)),
+                    ("hard", "Difficile", "Revenus ennemi x1.5", (255, 180, 80)),
+                    ("extreme", "Extreme", "Revenus ennemi x2.0", (255, 100, 100)),
+                ]
+                
+                buttons = [self.btn_diff_easy, self.btn_diff_medium, self.btn_diff_hard, self.btn_diff_extreme]
+                
+                for i, (key, label, desc, color) in enumerate(diff_data):
+                    btn = buttons[i]
+                    btn.rect = pygame.Rect(btn_x, btn_y_start + i * btn_gap, btn_w, btn_h)
+                    btn.text = label
+                    btn.draw(self.screen)
+                    
+                    # Description en dessous du bouton
+                    desc_surf = self.font_small.render(desc, True, color)
+                    desc_rect = desc_surf.get_rect(centerx=self.width // 2, top=btn.rect.bottom + 5)
+                    self.screen.blit(desc_surf, desc_rect)
+                
+                self.btn_back.draw(self.screen)
+
+            elif self.state == "options":
+                # Afficher le fond du menu
+                if self.menu_background:
+                    self.screen.blit(self.menu_background, (0, 0))
                 
                 # Titre "Options" stylisé
                 title_color = (222, 205, 163)
@@ -2374,13 +2481,48 @@ class GameApp:
                 title_rect = title_surf.get_rect(center=(self.width // 2, 60))
                 self.screen.blit(title_surf, title_rect)
                 
-                self.btn_back.draw(self.screen)
-
+                # Panneau pour les 3 toggles
+                panel_w = 580
+                panel_h = 320
+                panel_x = self.width // 2 - panel_w // 2
+                panel_y = self.height // 2 - panel_h // 2
+                self._draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
+                
+                # Bordure dorée
+                gold_dark = (139, 119, 77)
+                pygame.draw.rect(self.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=10)
+                
+                # Configuration des toggles
+                toggle_w = 520
+                toggle_h = 45
+                toggle_x = self.width // 2 - toggle_w // 2
+                toggle_gap = 90
+                
+                # Toggle 1 : Afficher les lanes
+                toggle1_y = panel_y + 25
+                self.tog_lanes.rect = pygame.Rect(toggle_x, toggle1_y, toggle_w, toggle_h)
                 self.tog_lanes.draw(self.screen)
+                desc1_surf = self.font_small.render("Chemins des 3 lanes (joueur=cyan, ennemi=orange)", True, (160, 155, 140))
+                desc1_rect = desc1_surf.get_rect(centerx=self.width // 2, top=self.tog_lanes.rect.bottom + 3)
+                self.screen.blit(desc1_surf, desc1_rect)
+                
+                # Toggle 2 : Zones de terrain
+                toggle2_y = toggle1_y + toggle_gap
+                self.tog_terrain.rect = pygame.Rect(toggle_x, toggle2_y, toggle_w, toggle_h)
                 self.tog_terrain.draw(self.screen)
-                self.tog_nav.draw(self.screen)
+                desc2_surf = self.font_small.render("Zones lentes (marron) et interdites (rouge)", True, (160, 155, 140))
+                desc2_rect = desc2_surf.get_rect(centerx=self.width // 2, top=self.tog_terrain.rect.bottom + 3)
+                self.screen.blit(desc2_surf, desc2_rect)
+                
+                # Toggle 3 : Chemins des unités
+                toggle3_y = toggle2_y + toggle_gap
+                self.tog_paths.rect = pygame.Rect(toggle_x, toggle3_y, toggle_w, toggle_h)
                 self.tog_paths.draw(self.screen)
-                self.tog_advhud.draw(self.screen)
+                desc3_surf = self.font_small.render("Trajet de chaque unite en temps reel", True, (160, 155, 140))
+                desc3_rect = desc3_surf.get_rect(centerx=self.width // 2, top=self.tog_paths.rect.bottom + 3)
+                self.screen.blit(desc3_surf, desc3_rect)
+                
+                self.btn_back.draw(self.screen)
 
             elif self.state == "controls":
                 # Afficher le fond du menu
@@ -2533,10 +2675,11 @@ class GameApp:
                 self.screen.blit(value2, (panel_x + panel_w - 40 - value2.get_width(), stats_y))
                 stats_y += line_h
                 
-                # Niveau de difficulté
-                diff_level = self.difficulty_system.level if self.difficulty_system else 1
-                label3 = self.font.render("Niveau difficulte:", True, (180, 170, 150))
-                value3 = self.font.render(f"{diff_level}", True, text_gold)
+                # Difficulté choisie
+                diff_names = {"easy": "Facile", "medium": "Moyen", "hard": "Difficile", "extreme": "Extreme"}
+                diff_name = diff_names.get(self.selected_difficulty, "Moyen")
+                label3 = self.font.render("Difficulte:", True, (180, 170, 150))
+                value3 = self.font.render(diff_name, True, text_gold)
                 self.screen.blit(label3, (stats_x, stats_y))
                 self.screen.blit(value3, (panel_x + panel_w - 40 - value3.get_width(), stats_y))
                 stats_y += line_h + 5
