@@ -841,10 +841,11 @@ class GameApp:
 
     def _compute_lane_route_path(self, lane_idx: int) -> list[tuple[int, int]]:
         """
-        Lane réelle = chemin complet :
-        ANCRE (haut/droite/bas de la pyramide) -> entrée lane -> sortie lane -> destination symétrique
-
-        SYMÉTRIE : la destination joueur = le départ ennemi (et vice-versa).
+        Lane = chemin A* COMPLET de pyramide joueur à pyramide ennemie.
+        
+        - Lane 1 (idx 0): HAUT de pyramide → lane haut → HAUT de pyramide ennemie
+        - Lane 2 (idx 1): MILIEU (droite) de pyramide → lane milieu → MILIEU (gauche) de pyramide ennemie  
+        - Lane 3 (idx 2): BAS de pyramide → lane bas → BAS de pyramide ennemie
         """
         if not self.nav_grid:
             return []
@@ -861,52 +862,46 @@ class GameApp:
         w = int(getattr(self.nav_grid, "width", 0))
 
         def clamp_xy(x: int, y: int) -> tuple[int, int]:
-            if w > 0:
-                x = self._clamp(x, 0, w - 1)
-            if h > 0:
-                y = self._clamp(y, 0, h - 1)
+            x = max(1, min(w - 2, int(x)))
+            y = max(1, min(h - 2, int(y)))
             return (x, y)
 
-        # Ancre de DÉPART collée à la pyramide joueur
+        # Ancres selon la lane
         if lane_idx == 0:
-            start_raw = (px, py - 1)      # haut
+            # Lane 1 = HAUT des pyramides
+            start_anchor = clamp_xy(px, py - 1)
+            end_anchor = clamp_xy(ex, ey - 1)
         elif lane_idx == 1:
-            start_raw = (px + 1, py)      # droite
+            # Lane 2 = MILIEU (côtés des pyramides)
+            start_anchor = clamp_xy(px + 1, py)
+            end_anchor = clamp_xy(ex - 1, ey)
         else:
-            start_raw = (px, py + 1)      # bas
+            # Lane 3 = BAS des pyramides
+            start_anchor = clamp_xy(px, py + 1)
+            end_anchor = clamp_xy(ex, ey + 1)
 
-        start_raw = clamp_xy(int(start_raw[0]), int(start_raw[1]))
+        # Points d'entrée/sortie sur la lane horizontale
+        entry_point = clamp_xy(px + 1, lane_y)
+        exit_point = clamp_xy(ex - 1, lane_y)
 
-        # Entrée lane = à droite de ta base, sur la lane
-        entry_raw = (px + 1, lane_y)
-        entry_raw = clamp_xy(int(entry_raw[0]), int(entry_raw[1]))
+        # Trouver des cases walkable proches
+        s = self._find_walkable_near(start_anchor[0], start_anchor[1], max_r=12)
+        e = self._find_walkable_near(entry_point[0], entry_point[1], max_r=12)
+        x = self._find_walkable_near(exit_point[0], exit_point[1], max_r=12)
+        g = self._find_walkable_near(end_anchor[0], end_anchor[1], max_r=12)
 
-        # Milieu proche ennemi sur la lane
-        mid_raw = (ex - 1, lane_y)
-        mid_raw = clamp_xy(int(mid_raw[0]), int(mid_raw[1]))
-
-        # ✅ DESTINATION = SYMÉTRIQUE du départ ennemi (collé à pyramide ennemie)
-        if lane_idx == 0:
-            end_raw = (ex, ey - 1)      # haut de pyramide ennemie
-        elif lane_idx == 1:
-            end_raw = (ex - 1, ey)      # gauche de pyramide ennemie
-        else:
-            end_raw = (ex, ey + 1)      # bas de pyramide ennemie
-
-        end_raw = clamp_xy(int(end_raw[0]), int(end_raw[1]))
-
-        s = self._find_walkable_near(int(start_raw[0]), int(start_raw[1]), max_r=12)
-        e = self._find_walkable_near(int(entry_raw[0]), int(entry_raw[1]), max_r=12)
-        m = self._find_walkable_near(int(mid_raw[0]), int(mid_raw[1]), max_r=12)
-        g = self._find_walkable_near(int(end_raw[0]), int(end_raw[1]), max_r=12)
-
-        if not s or not e or not m or not g:
+        if not s or not e or not x or not g:
             return []
 
+        # Construire le chemin en 3 segments
+        # 1. Ancre joueur → Entrée lane
         p1 = self._astar_preview(s, e)
-        p2 = self._astar_preview(e, m)
-        p3 = self._astar_preview(m, g)
+        # 2. Entrée lane → Sortie lane (parcours horizontal)
+        p2 = self._astar_preview(e, x)
+        # 3. Sortie lane → Ancre ennemie
+        p3 = self._astar_preview(x, g)
 
+        # Assembler le chemin complet
         out = []
         if p1:
             out += p1
@@ -914,115 +909,31 @@ class GameApp:
             out += p2[1:] if out else p2
         if p3:
             out += p3[1:] if out else p3
-
-        if out:
-            if tuple(out[0]) != tuple(start_raw):
-                out.insert(0, start_raw)
-        else:
-            out = [start_raw]
-
-        return out
-
-    def _compute_enemy_lane_route_path(self, lane_idx: int) -> list[tuple[int, int]]:
-        """
-        Chemin de la lane pour l'ennemi (de droite à gauche).
-        SYMÉTRIQUE : la destination ennemi = le départ joueur (et vice-versa).
-        """
-        if not self.nav_grid:
-            return []
-
-        lane_idx = max(0, min(2, int(lane_idx)))
-        lane_y = int(self.lanes_y[lane_idx])
-
-        px = int(self.player_pyr_pos[0])
-        py = int(self.player_pyr_pos[1])
-        ex = int(self.enemy_pyr_pos[0])
-        ey = int(self.enemy_pyr_pos[1])
-
-        h = int(getattr(self.nav_grid, "height", 0))
-        w = int(getattr(self.nav_grid, "width", 0))
-
-        def clamp_xy(x: int, y: int) -> tuple[int, int]:
-            if w > 0:
-                x = self._clamp(x, 0, w - 1)
-            if h > 0:
-                y = self._clamp(y, 0, h - 1)
-            return (x, y)
-
-        # Ancre de DÉPART = même logique que le joueur mais sur pyramide ennemie
-        if lane_idx == 0:
-            start_raw = (ex, ey - 1)      # haut
-        elif lane_idx == 1:
-            start_raw = (ex - 1, ey)      # gauche (vers joueur)
-        else:
-            start_raw = (ex, ey + 1)      # bas
-
-        start_raw = clamp_xy(int(start_raw[0]), int(start_raw[1]))
-
-        # Entrée lane = à gauche de la pyramide ennemie, sur la lane
-        entry_raw = (ex - 1, lane_y)
-        entry_raw = clamp_xy(int(entry_raw[0]), int(entry_raw[1]))
-
-        # Milieu proche joueur sur la lane
-        mid_raw = (px + 1, lane_y)
-        mid_raw = clamp_xy(int(mid_raw[0]), int(mid_raw[1]))
-
-        # ✅ DESTINATION = SYMÉTRIQUE du départ joueur (collé à pyramide joueur)
-        if lane_idx == 0:
-            end_raw = (px, py - 1)      # haut de pyramide joueur
-        elif lane_idx == 1:
-            end_raw = (px + 1, py)      # droite de pyramide joueur
-        else:
-            end_raw = (px, py + 1)      # bas de pyramide joueur
-
-        end_raw = clamp_xy(int(end_raw[0]), int(end_raw[1]))
-
-        s = self._find_walkable_near(int(start_raw[0]), int(start_raw[1]), max_r=12)
-        e = self._find_walkable_near(int(entry_raw[0]), int(entry_raw[1]), max_r=12)
-        m = self._find_walkable_near(int(mid_raw[0]), int(mid_raw[1]), max_r=12)
-        g = self._find_walkable_near(int(end_raw[0]), int(end_raw[1]), max_r=12)
-
-        if not s or not e or not m or not g:
-            return []
-
-        p1 = self._astar_preview(s, e)
-        p2 = self._astar_preview(e, m)
-        p3 = self._astar_preview(m, g)
-
-        out = []
-        if p1:
-            out += p1
-        if p2:
-            out += p2[1:] if out else p2
-        if p3:
-            out += p3[1:] if out else p3
-
-        if out:
-            if tuple(out[0]) != tuple(start_raw):
-                out.insert(0, start_raw)
-        else:
-            out = [start_raw]
 
         return out
 
     def _recalculate_all_lanes(self):
-        """Recalcule tous les chemins de lanes (joueur ET ennemi)."""
+        """Recalcule tous les chemins de lanes (joueur ET ennemi = même chemin, sens inverse)."""
         if not self.nav_grid:
             return
         
-        # Chemins du joueur (gauche → droite)
+        # Chemins du joueur (gauche → droite) calculés par A*
         self.lane_paths = [
             self._compute_lane_route_path(0),
             self._compute_lane_route_path(1),
             self._compute_lane_route_path(2),
         ]
         
-        # Chemins de l'ennemi (droite → gauche)
+        # Chemins de l'ennemi = MÊME chemin, mais inversé (droite → gauche)
         self.lane_paths_enemy = [
-            self._compute_enemy_lane_route_path(0),
-            self._compute_enemy_lane_route_path(1),
-            self._compute_enemy_lane_route_path(2),
+            list(reversed(self.lane_paths[0])) if self.lane_paths[0] else [],
+            list(reversed(self.lane_paths[1])) if self.lane_paths[1] else [],
+            list(reversed(self.lane_paths[2])) if self.lane_paths[2] else [],
         ]
+        
+        # Informer LaneRouteSystem des nouveaux chemins
+        if hasattr(self, 'lane_route_system') and self.lane_route_system:
+            self.lane_route_system.set_lane_paths(self.lane_paths)
 
     def _flash_lane(self):
         self.lane_flash_timer = float(self.lane_flash_duration)
@@ -1279,14 +1190,13 @@ class GameApp:
 
         self.cleanup_system = CleanupSystem(protected_entities=pyramid_ids)
 
-        # lane route gameplay
+        # lane route gameplay - utilise les chemins pré-calculés
         self.lane_route_system = LaneRouteSystem(
-            self.nav_grid,
             self.lanes_y,
-            self.player_pyr_pos,
-            self.enemy_pyr_pos,
             pyramid_ids=pyramid_ids
         )
+        # Passer les chemins pré-calculés
+        self.lane_route_system.set_lane_paths(self.lane_paths)
 
         # ✅ Plus de DifficultySystem dynamique - la difficulté est choisie au menu
         self.difficulty_system = None
