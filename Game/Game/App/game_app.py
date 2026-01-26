@@ -247,6 +247,7 @@ class GameApp:
         # options
         self.opt_show_terrain = False
         self.opt_show_paths = False
+        self.opt_show_lanes = False
 
         # ✅ lane sélectionnée (0..2) -> lane2 par défaut
         self.selected_lane_idx = 1
@@ -269,7 +270,8 @@ class GameApp:
         self.enemy_pyr_pos = (0, 0)
 
         # chemins lane (3 lanes) => affichage réaliste
-        self.lane_paths = [[], [], []]
+        self.lane_paths = [[], [], []]        # Joueur → Ennemi
+        self.lane_paths_enemy = [[], [], []]  # Ennemi → Joueur
 
         # preview lane (court)
         self.lane_flash_timer = 0.0
@@ -294,6 +296,7 @@ class GameApp:
         # toggle options
         self.tog_terrain = None
         self.tog_paths = None
+        self.tog_lanes = None
 
         # lane selector HUD
         self.lane_btn_rects = []
@@ -406,6 +409,7 @@ class GameApp:
         # Options au boot
         self.opt_show_terrain = False
         self.opt_show_paths = False
+        self.opt_show_lanes = False
 
         # ✅ lane par défaut = 2 au boot
         self.selected_lane_idx = 1
@@ -466,9 +470,10 @@ class GameApp:
         th = 54
         tg = 16
 
-        # Options de jeu
-        self.tog_terrain = UIToggle(pygame.Rect(ox, oy, tw, th), "Afficher les zones de terrain", self.font, self.opt_show_terrain)
-        self.tog_paths = UIToggle(pygame.Rect(ox, oy + th + tg, tw, th), "Afficher les chemins des unites", self.font, self.opt_show_paths)
+        # Options de jeu (3 toggles)
+        self.tog_lanes = UIToggle(pygame.Rect(ox, oy, tw, th), "Afficher les lanes", self.font, self.opt_show_lanes)
+        self.tog_terrain = UIToggle(pygame.Rect(ox, oy + (th + tg), tw, th), "Afficher les zones de terrain", self.font, self.opt_show_terrain)
+        self.tog_paths = UIToggle(pygame.Rect(ox, oy + (th + tg) * 2, tw, th), "Afficher les chemins des unites", self.font, self.opt_show_paths)
 
         # In-game lane buttons (repositionnés sous le nouveau HUD)
         bx = 12
@@ -482,6 +487,7 @@ class GameApp:
         ]
 
         # sécurité : on resync
+        self._sync_toggle_value(self.tog_lanes, self.opt_show_lanes)
         self._sync_toggle_value(self.tog_terrain, self.opt_show_terrain)
         self._sync_toggle_value(self.tog_paths, self.opt_show_paths)
 
@@ -836,12 +842,9 @@ class GameApp:
     def _compute_lane_route_path(self, lane_idx: int) -> list[tuple[int, int]]:
         """
         Lane réelle = chemin complet :
-        ANCRE (haut/droite/bas de la pyramide) -> entrée lane -> sortie lane -> case d'attaque lane (haut/milieu/bas)
+        ANCRE (haut/droite/bas de la pyramide) -> entrée lane -> sortie lane -> destination symétrique
 
-        Objectif : la ligne part "collée" à la pyramide :
-        - lane 1 : haut de la pyramide
-        - lane 2 : droite de la pyramide
-        - lane 3 : bas de la pyramide
+        SYMÉTRIE : la destination joueur = le départ ennemi (et vice-versa).
         """
         if not self.nav_grid:
             return []
@@ -852,6 +855,7 @@ class GameApp:
         px = int(self.player_pyr_pos[0])
         py = int(self.player_pyr_pos[1])
         ex = int(self.enemy_pyr_pos[0])
+        ey = int(self.enemy_pyr_pos[1])
 
         h = int(getattr(self.nav_grid, "height", 0))
         w = int(getattr(self.nav_grid, "width", 0))
@@ -863,7 +867,7 @@ class GameApp:
                 y = self._clamp(y, 0, h - 1)
             return (x, y)
 
-        # ✅ ancre de départ "collée" à la pyramide (selon lane)
+        # Ancre de DÉPART collée à la pyramide joueur
         if lane_idx == 0:
             start_raw = (px, py - 1)      # haut
         elif lane_idx == 1:
@@ -873,16 +877,22 @@ class GameApp:
 
         start_raw = clamp_xy(int(start_raw[0]), int(start_raw[1]))
 
-        # entrée lane = à droite de ta base, sur la lane sélectionnée
+        # Entrée lane = à droite de ta base, sur la lane
         entry_raw = (px + 1, lane_y)
         entry_raw = clamp_xy(int(entry_raw[0]), int(entry_raw[1]))
 
-        # milieu proche ennemi sur la lane
+        # Milieu proche ennemi sur la lane
         mid_raw = (ex - 1, lane_y)
         mid_raw = clamp_xy(int(mid_raw[0]), int(mid_raw[1]))
 
-        # fin = case d'attaque lane (haut/milieu/bas)
-        end_raw = self._attack_cell_for_lane(1, lane_idx)
+        # ✅ DESTINATION = SYMÉTRIQUE du départ ennemi (collé à pyramide ennemie)
+        if lane_idx == 0:
+            end_raw = (ex, ey - 1)      # haut de pyramide ennemie
+        elif lane_idx == 1:
+            end_raw = (ex - 1, ey)      # gauche de pyramide ennemie
+        else:
+            end_raw = (ex, ey + 1)      # bas de pyramide ennemie
+
         end_raw = clamp_xy(int(end_raw[0]), int(end_raw[1]))
 
         s = self._find_walkable_near(int(start_raw[0]), int(start_raw[1]), max_r=12)
@@ -912,6 +922,107 @@ class GameApp:
             out = [start_raw]
 
         return out
+
+    def _compute_enemy_lane_route_path(self, lane_idx: int) -> list[tuple[int, int]]:
+        """
+        Chemin de la lane pour l'ennemi (de droite à gauche).
+        SYMÉTRIQUE : la destination ennemi = le départ joueur (et vice-versa).
+        """
+        if not self.nav_grid:
+            return []
+
+        lane_idx = max(0, min(2, int(lane_idx)))
+        lane_y = int(self.lanes_y[lane_idx])
+
+        px = int(self.player_pyr_pos[0])
+        py = int(self.player_pyr_pos[1])
+        ex = int(self.enemy_pyr_pos[0])
+        ey = int(self.enemy_pyr_pos[1])
+
+        h = int(getattr(self.nav_grid, "height", 0))
+        w = int(getattr(self.nav_grid, "width", 0))
+
+        def clamp_xy(x: int, y: int) -> tuple[int, int]:
+            if w > 0:
+                x = self._clamp(x, 0, w - 1)
+            if h > 0:
+                y = self._clamp(y, 0, h - 1)
+            return (x, y)
+
+        # Ancre de DÉPART = même logique que le joueur mais sur pyramide ennemie
+        if lane_idx == 0:
+            start_raw = (ex, ey - 1)      # haut
+        elif lane_idx == 1:
+            start_raw = (ex - 1, ey)      # gauche (vers joueur)
+        else:
+            start_raw = (ex, ey + 1)      # bas
+
+        start_raw = clamp_xy(int(start_raw[0]), int(start_raw[1]))
+
+        # Entrée lane = à gauche de la pyramide ennemie, sur la lane
+        entry_raw = (ex - 1, lane_y)
+        entry_raw = clamp_xy(int(entry_raw[0]), int(entry_raw[1]))
+
+        # Milieu proche joueur sur la lane
+        mid_raw = (px + 1, lane_y)
+        mid_raw = clamp_xy(int(mid_raw[0]), int(mid_raw[1]))
+
+        # ✅ DESTINATION = SYMÉTRIQUE du départ joueur (collé à pyramide joueur)
+        if lane_idx == 0:
+            end_raw = (px, py - 1)      # haut de pyramide joueur
+        elif lane_idx == 1:
+            end_raw = (px + 1, py)      # droite de pyramide joueur
+        else:
+            end_raw = (px, py + 1)      # bas de pyramide joueur
+
+        end_raw = clamp_xy(int(end_raw[0]), int(end_raw[1]))
+
+        s = self._find_walkable_near(int(start_raw[0]), int(start_raw[1]), max_r=12)
+        e = self._find_walkable_near(int(entry_raw[0]), int(entry_raw[1]), max_r=12)
+        m = self._find_walkable_near(int(mid_raw[0]), int(mid_raw[1]), max_r=12)
+        g = self._find_walkable_near(int(end_raw[0]), int(end_raw[1]), max_r=12)
+
+        if not s or not e or not m or not g:
+            return []
+
+        p1 = self._astar_preview(s, e)
+        p2 = self._astar_preview(e, m)
+        p3 = self._astar_preview(m, g)
+
+        out = []
+        if p1:
+            out += p1
+        if p2:
+            out += p2[1:] if out else p2
+        if p3:
+            out += p3[1:] if out else p3
+
+        if out:
+            if tuple(out[0]) != tuple(start_raw):
+                out.insert(0, start_raw)
+        else:
+            out = [start_raw]
+
+        return out
+
+    def _recalculate_all_lanes(self):
+        """Recalcule tous les chemins de lanes (joueur ET ennemi)."""
+        if not self.nav_grid:
+            return
+        
+        # Chemins du joueur (gauche → droite)
+        self.lane_paths = [
+            self._compute_lane_route_path(0),
+            self._compute_lane_route_path(1),
+            self._compute_lane_route_path(2),
+        ]
+        
+        # Chemins de l'ennemi (droite → gauche)
+        self.lane_paths_enemy = [
+            self._compute_enemy_lane_route_path(0),
+            self._compute_enemy_lane_route_path(1),
+            self._compute_enemy_lane_route_path(2),
+        ]
 
     def _flash_lane(self):
         self.lane_flash_timer = float(self.lane_flash_duration)
@@ -959,6 +1070,7 @@ class GameApp:
         self.lane_flash_timer = 0.0
         self.lane_preview_path = []
         self.lane_paths = [[], [], []]
+        self.lane_paths_enemy = [[], [], []]
 
         self._known_units = set()
 
@@ -1069,12 +1181,8 @@ class GameApp:
         # ✅ connectors lanes haut/milieu/bas + cases d’attaque walkable
         self._carve_pyramid_connectors()
 
-        # 6) pré-calcul des 3 lanes réelles
-        self.lane_paths = [
-            self._compute_lane_route_path(0),
-            self._compute_lane_route_path(1),
-            self._compute_lane_route_path(2),
-        ]
+        # 6) pré-calcul des 3 lanes (joueur ET ennemi)
+        self._recalculate_all_lanes()
 
         # 7) world propre par match
         self.world = World(name=f"match_{self.match_index}")
@@ -1205,7 +1313,8 @@ class GameApp:
             self.random_event_system = RandomEventSystem(
                 self.nav_grid,
                 self.player_pyramid_eid,
-                self.enemy_pyramid_eid
+                self.enemy_pyramid_eid,
+                on_terrain_change=self._recalculate_all_lanes  # Recalculer les lanes au sandstorm
             )
             print("[OK] RandomEventSystem created")
         except Exception as e:
@@ -1491,18 +1600,31 @@ class GameApp:
         pygame.draw.circle(surface, (255, 255, 200), (cx, y + 5), 3)
 
     def _draw_lane_paths_all(self):
-        if not self.lane_paths:
-            return
-
+        """Affiche les 3 lanes du joueur (cyan) et les 3 lanes de l'ennemi (orange)."""
         overlay = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
-
-        for path in self.lane_paths:
-            if not path or len(path) < 2:
-                continue
-
-            pts = [self._grid_to_screen(x, y) for (x, y) in path]
-            pygame.draw.lines(overlay, (240, 240, 240, 28), False, pts, 3)
-
+        
+        # Lanes du joueur (cyan)
+        if self.lane_paths:
+            for path in self.lane_paths:
+                if not path or len(path) < 2:
+                    continue
+                pts = [self._grid_to_screen(x, y) for (x, y) in path]
+                pygame.draw.lines(overlay, (80, 200, 255, 120), False, pts, 3)
+                # Points de départ et fin
+                pygame.draw.circle(overlay, (80, 200, 255, 180), pts[0], 5)
+                pygame.draw.circle(overlay, (80, 200, 255, 180), pts[-1], 5, 2)
+        
+        # Lanes de l'ennemi (orange)
+        if self.lane_paths_enemy:
+            for path in self.lane_paths_enemy:
+                if not path or len(path) < 2:
+                    continue
+                pts = [self._grid_to_screen(x, y) for (x, y) in path]
+                pygame.draw.lines(overlay, (255, 140, 80, 120), False, pts, 3)
+                # Points de départ et fin
+                pygame.draw.circle(overlay, (255, 140, 80, 180), pts[0], 5)
+                pygame.draw.circle(overlay, (255, 140, 80, 180), pts[-1], 5, 2)
+        
         self.screen.blit(overlay, (0, 0))
 
     def _draw_lane_preview_path(self):
@@ -2090,6 +2212,7 @@ class GameApp:
     def _open_options(self):
         self.state_return = self.state
         self.state = "options"
+        self._sync_toggle_value(self.tog_lanes, self.opt_show_lanes)
         self._sync_toggle_value(self.tog_terrain, self.opt_show_terrain)
         self._sync_toggle_value(self.tog_paths, self.opt_show_paths)
 
@@ -2209,6 +2332,8 @@ class GameApp:
                     if self.btn_back.handle_event(event):
                         self._return_from_submenu()
 
+                    if self.tog_lanes.handle_event(event):
+                        self.opt_show_lanes = self.tog_lanes.value
                     if self.tog_terrain.handle_event(event):
                         self.opt_show_terrain = self.tog_terrain.value
                     if self.tog_paths.handle_event(event):
@@ -2311,6 +2436,10 @@ class GameApp:
 
             if self.state in ("playing", "pause", "game_over") and self.world:
                 self._draw_lane_preview_path()
+
+                # Afficher les lanes (avant le terrain pour mieux voir)
+                if self.opt_show_lanes:
+                    self._draw_lane_paths_all()
 
                 if self.opt_show_terrain:
                     self._draw_terrain_overlay()
@@ -2442,9 +2571,9 @@ class GameApp:
                 title_rect = title_surf.get_rect(center=(self.width // 2, 60))
                 self.screen.blit(title_surf, title_rect)
                 
-                # Panneau pour les toggles
+                # Panneau pour les 3 toggles
                 panel_w = 580
-                panel_h = 220
+                panel_h = 320
                 panel_x = self.width // 2 - panel_w // 2
                 panel_y = self.height // 2 - panel_h // 2
                 self._draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
@@ -2453,30 +2582,35 @@ class GameApp:
                 gold_dark = (139, 119, 77)
                 pygame.draw.rect(self.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=10)
                 
-                # Toggle 1 : Zones de terrain
+                # Configuration des toggles
                 toggle_w = 520
-                toggle_h = 50
+                toggle_h = 45
                 toggle_x = self.width // 2 - toggle_w // 2
-                toggle_y = panel_y + 25
+                toggle_gap = 90
                 
-                self.tog_terrain.rect = pygame.Rect(toggle_x, toggle_y, toggle_w, toggle_h)
-                self.tog_terrain.draw(self.screen)
-                
-                # Description 1
-                desc1_surf = self.font_small.render("Zones lentes (marron) et interdites (rouge)", True, (160, 155, 140))
-                desc1_rect = desc1_surf.get_rect(centerx=self.width // 2, top=self.tog_terrain.rect.bottom + 5)
+                # Toggle 1 : Afficher les lanes
+                toggle1_y = panel_y + 25
+                self.tog_lanes.rect = pygame.Rect(toggle_x, toggle1_y, toggle_w, toggle_h)
+                self.tog_lanes.draw(self.screen)
+                desc1_surf = self.font_small.render("Chemins des 3 lanes (joueur=cyan, ennemi=orange)", True, (160, 155, 140))
+                desc1_rect = desc1_surf.get_rect(centerx=self.width // 2, top=self.tog_lanes.rect.bottom + 3)
                 self.screen.blit(desc1_surf, desc1_rect)
                 
-                # Toggle 2 : Chemins des unités
-                toggle2_y = desc1_rect.bottom + 20
-                
-                self.tog_paths.rect = pygame.Rect(toggle_x, toggle2_y, toggle_w, toggle_h)
-                self.tog_paths.draw(self.screen)
-                
-                # Description 2
-                desc2_surf = self.font_small.render("Affiche le trajet de chaque unite", True, (160, 155, 140))
-                desc2_rect = desc2_surf.get_rect(centerx=self.width // 2, top=self.tog_paths.rect.bottom + 5)
+                # Toggle 2 : Zones de terrain
+                toggle2_y = toggle1_y + toggle_gap
+                self.tog_terrain.rect = pygame.Rect(toggle_x, toggle2_y, toggle_w, toggle_h)
+                self.tog_terrain.draw(self.screen)
+                desc2_surf = self.font_small.render("Zones lentes (marron) et interdites (rouge)", True, (160, 155, 140))
+                desc2_rect = desc2_surf.get_rect(centerx=self.width // 2, top=self.tog_terrain.rect.bottom + 3)
                 self.screen.blit(desc2_surf, desc2_rect)
+                
+                # Toggle 3 : Chemins des unités
+                toggle3_y = toggle2_y + toggle_gap
+                self.tog_paths.rect = pygame.Rect(toggle_x, toggle3_y, toggle_w, toggle_h)
+                self.tog_paths.draw(self.screen)
+                desc3_surf = self.font_small.render("Trajet de chaque unite en temps reel", True, (160, 155, 140))
+                desc3_rect = desc3_surf.get_rect(centerx=self.width // 2, top=self.tog_paths.rect.bottom + 3)
+                self.screen.blit(desc3_surf, desc3_rect)
                 
                 self.btn_back.draw(self.screen)
 
