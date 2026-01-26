@@ -1,50 +1,89 @@
 # Interface du jeu
 
-L’interface d’Antique War est conçue pour rester claire tout en montrant les informations importantes pour prendre des décisions rapides.
+L’interface d’Antique War permet au joueur d’accéder rapidement aux informations essentielles et d’interagir avec le jeu pendant une partie.
 
----
+Elle est organisée autour de plusieurs zones distinctes à l’écran.
+
+![Interface du jeu](./images/Interface.png)
+
 
 ## Vue d’ensemble
 
-L’écran de jeu se compose généralement de :
+L’écran de jeu est composé de plusieurs éléments :
 
-1. **Zone de jeu centrale**  
-   - Le désert, les pyramides, les unités alliées et ennemies, les obstacles.
+- une zone de jeu centrale représentant le désert ;
+- une zone d’informations située en haut à gauche ;
+- une barre d’actions permettant d’invoquer des unités et d’améliorer la pyramide ;
+- une mini-carte située en bas à droite.
 
-2. **Zone d’informations (souvent en haut)**  
-   - Nombre de 𓍯 disponibles.
-   - Niveau de votre pyramide.
-   - Points de vie de votre pyramide (barre de vie ou chiffre).
+## Zone de jeu centrale
 
-3. **Barre d’actions (souvent en bas)**  
-   - Boutons pour invoquer :
-     - Momie
-     - Dromadaire blindé
-     - Sphinx
-   - Bouton pour améliorer la pyramide (si assez de ressources).
+La zone centrale affiche l’environnement de jeu.
 
----
+Elle contient :
 
-## Resource HUD (𓍯)
+- le terrain désertique ;
+- les pyramides du joueur et de l’ennemi ;
+- les unités alliées et ennemies ;
+- les obstacles présents sur le terrain.
 
-L’interface affiche en permanence :
+Les unités se déplacent automatiquement dans cette zone en fonction de leur comportement et du terrain.
 
-- le **nombre actuel de 𓍯**,
-- l’évolution au fil du temps (vous voyez le chiffre augmenter).
+![Zone de jeu centrale](./images/zone_jeu_centrale.jpg)
 
-Vous devez garder un œil dessus pour savoir :
+## Zone d’informations
 
-- quand vous pouvez invoquer une unité,
-- quand vous pouvez améliorer la pyramide.
+La zone d’informations est située en haut à gauche de l’écran.
 
----
+Elle affiche :
 
-## Retour visuel
+- la quantité actuelle de monnaie (𓍯) ;
+- la vitesse de production de la monnaie par seconde ;
+- les points de vie de la pyramide du joueur ;
+- les points de vie de la pyramide ennemie.
 
-La plupart des actions ont un retour visuel clair :
+Les points de vie sont représentés par des barres colorées associées à chaque pyramide.
 
-- invocation d’une unité → apparition près de votre pyramide ;
-- amélioration → changement visuel de la pyramide (selon l’implémentation) ou indication de niveau ;
-- évènements → effets visibles (tempête, nuée, etc.).
+![Zone d'informations](./images/informations.jpg)
 
-L’interface est volontairement simple pour que vous puissiez vous concentrer sur la stratégie.
+## Barre d’actions
+
+La barre d’actions permet au joueur d’effectuer les actions principales.
+
+Elle contient :
+
+- les boutons d’invocation des unités disponibles (Momie, Dromadaire blindé, Sphinx) ;
+- le coût de chaque unité affiché sous son icône ;
+- un bouton permettant d’améliorer la pyramide, avec indication du niveau actuel et du coût.
+
+Les boutons deviennent utilisables lorsque le joueur dispose de suffisamment de monnaie.
+
+![Barre d'actions](./images/barre_actions.jpg)
+
+## Sélection des voies
+
+Sous la barre d’actions, le joueur peut sélectionner une voie de déplacement.
+
+Trois voies sont disponibles :
+
+- Lane 1
+- Lane 2
+- Lane 3
+
+La voie sélectionnée détermine le chemin emprunté par les unités invoquées.
+
+![Lane](./images/lanes.jpg)
+
+## Mini-carte
+
+Une mini-carte est affichée en bas à droite de l’écran.
+
+Elle représente :
+
+- la position des pyramides ;
+- la disposition générale du terrain ;
+- les principales zones de déplacement.
+
+Elle permet d’avoir une vision globale de la zone de jeu.
+
+![Interface du jeu](./images/carte.jpg)

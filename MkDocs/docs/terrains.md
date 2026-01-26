@@ -1,51 +1,63 @@
-# Terrains & Obstacles
+# Terrains et obstacles
 
-Le champ de bataille est constitué de différents types de terrains et d’obstacles.  
-Ils ont un impact sur la **vitesse de déplacement** de vos unités et sur la façon dont elles se déplacent.
+Le champ de bataille est composé de différents types de terrains et d’obstacles.
 
----
+Ces éléments influencent le déplacement des unités et leur vitesse.
 
 ## Types de terrain
 
-<div class="ground">
-  <h1>Désert</h1>
-</div>
+### Désert
 
-- Terrain “neutre”.
-- Permet aux unités d’atteindre leur **vitesse maximale**.
+![Désert](images/Sable.png)
+
+Le désert est le terrain standard du jeu.
+
+Il ne modifie pas les caractéristiques des unités.  
+Les unités peuvent y atteindre leur vitesse maximale.
+
+Caractéristiques :
+
+| Effet | Valeur |
+|-----|-------|
+| Vitesse des unités | Maximale |
+
 
 ### Sables mouvants
 
-- Réduisent la vitesse des unités :  
-  > vitesse maximale / 2
-- Les unités restent plus longtemps exposées aux attaques.
+![Sables mouvants](images/Sable%20mouvant.png)
 
-### Zone de pyramide
+Les sables mouvants ralentissent les unités qui les traversent.
 
-- Terrain autour des pyramides (votre base et celle de l’ennemi).
-- Les unités sont souvent ralenties ou stoppées au contact de la pyramide pour attaquer.
+Caractéristiques :
 
----
+| Effet | Valeur |
+|-----|-------|
+| Vitesse des unités | Vitesse maximale / 2 |
 
-## Obstacles infranchissables
+## Obstacles
 
-Certains éléments du décor ne peuvent pas être traversés :
+Certains éléments du décor sont infranchissables et bloquent le passage des unités.
 
-- cactus ;
-- palmiers.
+Les unités doivent alors contourner ces éléments.
 
-Ils forcent les unités à **contourner**, ce qui :
+### Cactus
 
-- crée des couloirs,
-- peut allonger les trajets,
-- influence où vous placez vos attaques.
+![Cactus](images/Cactus.png)
 
----
+Les cactus bloquent totalement le déplacement des unités.
 
-## Utilisation stratégique
+### Palmiers
 
-- Attaquer par un chemin **sans sables mouvants** pour aller plus vite.
-- Forcer les unités ennemies à passer par un couloir étroit pour :
-  - les regrouper,
-  - les rendre plus faciles à gérer.
-- Protéger votre pyramide derrière des zones où les unités ennemies sont ralenties.
+![Palmiers](images/Palmier.png)
+
+Les palmiers bloquent également le déplacement des unités.
+
+## Impact sur le déplacement
+
+La présence de terrains et d’obstacles modifie les trajectoires des unités.
+
+Les unités :
+
+- évitent automatiquement les obstacles ;
+- adaptent leur chemin en fonction du terrain ;
+- peuvent être ralenties selon la zone traversée.

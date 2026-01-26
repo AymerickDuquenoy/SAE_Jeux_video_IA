@@ -1,126 +1,68 @@
 # Unités
 
-Les unités sont au cœur de votre stratégie dans **Antique War**.  
-Chaque type a un rôle précis, un coût en 𓍯, et un impact différent sur le champ de bataille.
+Les unités permettent au joueur d’attaquer la pyramide ennemie et de défendre la sienne.
+
+Chaque unité possède un coût, une vitesse, une puissance d’attaque et des points de vie différents.
 
 ---
 
 ## Momie
 
-<div class="unit-card">
-  <div class="unit-image-wrapper">
-    <img src="/images/Momie.png" class="unit-image" alt="Momie">
-  </div>
+![Momie](images/Momie.png)
 
-  <div class="unit-content">
-    <h2>Momie</h2>
-    <p class="unit-role">Unité légère – rapide mais fragile</p>
+La Momie est l’unité de base du jeu.
 
-    <p>
-      La Momie est votre unité de base. Individuellement faible, elle devient dangereuse en groupe.
-      Elle excelle pour mettre la pression tôt dans la partie et gêner l’adversaire.
-    </p>
+Elle est rapide mais possède peu de points de vie et inflige peu de dégâts.  
+Elle est principalement utilisée comme première unité disponible.
 
-    <dl class="unit-stats">
-      <div>
-        <dt>Coût</dt><dd>10𓍯</dd>
-      </div>
-      <div>
-        <dt>Vitesse</dt><dd>10</dd>
-      </div>
-      <div>
-        <dt>Dégâts</dt><dd>8</dd>
-      </div>
-      <div>
-        <dt>Points de vie</dt><dd>15</dd>
-      </div>
-    </dl>
+Caractéristiques :
 
-    <p class="unit-summary">
-      <strong>À utiliser pour :</strong> harcèlement, diversion, saturation du terrain.
-    </p>
-  </div>
-</div>
+| Attribut | Valeur |
+|--------|--------|
+| Coût | 10 𓍯 |
+| Vitesse | 10 |
+| Dégâts | 8 |
+| Points de vie | 15 |
 
 ---
 
 ## Dromadaire blindé
 
-<div class="unit-card">
-  <div class="unit-image-wrapper">
-    <img src="/images/Dromadaire.png" class="unit-image" alt="Dromadaire blindé">
-  </div>
+![Dromadaire blindé](images/Dromadaire.png)
 
-  <div class="unit-content">
-    <h2>Dromadaire blindé</h2>
-    <p class="unit-role">Unité intermédiaire – pilier de l’armée</p>
+Le Dromadaire blindé est une unité intermédiaire.
 
-    <p>
-      Le Dromadaire blindé est une unité polyvalente. Il offre un bon équilibre entre vitesse,
-      résistance et dégâts, ce qui en fait la colonne vertébrale de la plupart des compositions.
-    </p>
+Il offre un équilibre entre vitesse, résistance et puissance d’attaque.
 
-    <dl class="unit-stats">
-      <div>
-        <dt>Coût</dt><dd>25𓍯</dd>
-      </div>
-      <div>
-        <dt>Vitesse</dt><dd>6</dd>
-      </div>
-      <div>
-        <dt>Dégâts</dt><dd>20</dd>
-      </div>
-      <div>
-        <dt>Points de vie</dt><dd>50</dd>
-      </div>
-    </dl>
+Caractéristiques :
 
-    <p class="unit-summary">
-      <strong>À utiliser pour :</strong> maintenir une pression constante et sécuriser la ligne de front.
-    </p>
-  </div>
-</div>
+| Attribut | Valeur |
+|--------|--------|
+| Coût | 25 𓍯 |
+| Vitesse | 6 |
+| Dégâts | 20 |
+| Points de vie | 50 |
 
 ---
 
 ## Sphinx
 
-<div class="unit-card">
-  <div class="unit-image-wrapper">
-    <img src="/images/Sphinx.png" class="unit-image" alt="Sphinx">
-  </div>
+![Sphinx](images/Sphinx.png)
 
-  <div class="unit-content">
-    <h2>Sphinx</h2>
-    <p class="unit-role">Unité lourde – lente mais dévastatrice</p>
+Le Sphinx est l’unité la plus puissante du jeu.
 
-    <p>
-      Le Sphinx est votre unité la plus puissante. Sa progression est lente, mais il encaisse énormément
-      de dégâts et menace directement la pyramide ennemie dès qu’il l’atteint.
-    </p>
+Il est lent mais possède une grande résistance et inflige des dégâts importants.
 
-    <dl class="unit-stats">
-      <div>
-        <dt>Coût</dt><dd>75𓍯</dd>
-      </div>
-      <div>
-        <dt>Vitesse</dt><dd>4</dd>
-      </div>
-      <div>
-        <dt>Dégâts</dt><dd>40</dd>
-      </div>
-      <div>
-        <dt>Points de vie</dt><dd>120</dd>
-      </div>
-    </dl>
+Caractéristiques :
 
-    <p class="unit-summary">
-      <strong>À utiliser pour :</strong> percée décisive, destruction de la pyramide et tank principal.
-    </p>
-  </div>
-</div>
+| Attribut | Valeur |
+|--------|--------|
+| Coût | 75 𓍯 |
+| Vitesse | 4 |
+| Dégâts | 40 |
+| Points de vie | 120 |
 
---- 
+---
 
-Pour voir comment le terrain influence ces unités, consultez  
-[Terrains & Obstacles](terrains.md).
+Pour plus d’informations sur l’environnement de jeu, consultez  
+[Terrains et obstacles](terrains.md).

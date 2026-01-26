@@ -1,13 +1,15 @@
 # Antique War – Guide Utilisateur
 
-Bienvenue dans la documentation officielle d’**Antique War**, un jeu de stratégie en temps réel se déroulant dans le désert égyptien.
+Bienvenue dans la documentation officielle d’Antique War, un jeu de stratégie en temps réel se déroulant dans le désert égyptien.
 
 Ce guide s’adresse aux joueurs qui veulent :
 
-- comprendre rapidement **le but du jeu** ;
-- apprendre **comment jouer une partie** ;
-- découvrir les **unités**, les **terrains** et l’**économie** ;
-- progresser grâce à quelques **stratégies**.
+Vous y trouverez :
+
+- une présentation générale du jeu ;
+- l’objectif et les règles principales ;
+- le déroulement d’une partie ;
+- la description des unités, des terrains et de l’économie.
 
 ---
 
