@@ -27,9 +27,11 @@ class NavigationGrid:
             for _ in range(self.height)
         ]
 
+    # Vérifie si les coordonnées sont dans les limites de la grille
     def in_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
 
+    # Modifie une case de la grille
     def set_cell(self, x: int, y: int, *, walkable: Optional[bool] = None, mult: Optional[float] = None):
         if not self.in_bounds(x, y):
             return
@@ -38,11 +40,13 @@ class NavigationGrid:
         if mult is not None:
             self.mult[y][x] = float(mult)
 
+    # Vérifie si la case est traversable et retourne son coût
     def is_walkable(self, x: int, y: int) -> bool:
         if not self.in_bounds(x, y):
             return False
         return self.walkable[y][x]
 
+    # Retourne le coût de la case 
     def movement_cost(self, x: int, y: int) -> float:
         """
         Coût pour entrer dans (x,y) :
