@@ -18,7 +18,6 @@ class EconomySystem:
         self.default_income = float(default_income)
         self._default_ready = False
 
-    # Ajoute automatiquement des "coups de fouet" au Wallet selon IncomeRate
     def _ensure_player_has_income(self):
         if self._default_ready or self.player_pyramid_eid is None:
             return
@@ -39,7 +38,6 @@ class EconomySystem:
 
         self._default_ready = True
 
-    # Ajoute des "coups de fouet" au Wallet selon IncomeRate
     def process(self, dt: float):
         self._ensure_player_has_income()
 

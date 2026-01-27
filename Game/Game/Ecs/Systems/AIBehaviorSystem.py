@@ -27,7 +27,6 @@ class AIBehaviorSystem(esper.Processor):
         super().__init__()
         self.pyramid_ids = set(int(x) for x in pyramid_ids)
 
-    # Détermine le type d'unité (S/M/L) basé sur power
     def _get_unit_type(self, stats: UnitStats) -> str:
         """Détermine le type d'unité (S/M/L) basé sur power."""
         power = getattr(stats, 'power', 0)
@@ -38,7 +37,6 @@ class AIBehaviorSystem(esper.Processor):
         else:
             return "L"  # Sphinx
 
-    # Fonction principale de traitement du système
     def process(self, dt: float):
         if dt <= 0:
             return

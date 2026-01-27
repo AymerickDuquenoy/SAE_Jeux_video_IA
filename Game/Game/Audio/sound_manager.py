@@ -27,7 +27,6 @@ class SoundManager:
             print(f"[WARN] Sound init failed: {e}")
             self.initialized = False
     
-    # Générer des sons procéduraux simples
     def _generate_sounds(self):
         """Génère des sons procéduraux simples."""
         if not self.initialized:
@@ -59,7 +58,6 @@ class SoundManager:
         # Son de défaite
         self.sounds["defeat"] = self._make_sweep(400, 150, 0.4, sample_rate)
     
-    # Création de sons procéduraux simples 
     def _make_beep(self, freq: float, duration: float, sample_rate: int) -> pygame.mixer.Sound:
         """Crée un bip simple."""
         n_samples = int(sample_rate * duration)
@@ -78,7 +76,6 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
-    # Création de sons procéduraux plus complexes
     def _make_sweep(self, freq_start: float, freq_end: float, duration: float, 
                     sample_rate: int) -> pygame.mixer.Sound:
         """Crée un son avec fréquence qui change."""
@@ -100,7 +97,6 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
-    # Création d'un arpège
     def _make_arpeggio(self, freqs: list, note_duration: float, 
                        sample_rate: int) -> pygame.mixer.Sound:
         """Crée un arpège (suite de notes)."""
@@ -126,7 +122,6 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
-    # Jouer un son
     def play(self, sound_name: str):
         """Joue un son par son nom."""
         if not self.initialized or not self.enabled:
@@ -138,14 +133,12 @@ class SoundManager:
             except:
                 pass
     
-    # Modifier le volume
     def set_volume(self, vol: float):
         """Définit le volume (0.0 à 1.0)."""
         self.volume = max(0.0, min(1.0, vol))
         for sound in self.sounds.values():
             sound.set_volume(self.volume)
     
-    # Activer/désactiver les sons
     def toggle(self):
         """Active/désactive les sons."""
         self.enabled = not self.enabled

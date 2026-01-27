@@ -128,7 +128,6 @@ class EnemySpawnerSystem(esper.Processor):
         
         self.last_message = ""
 
-    # Fonctions qui aident au spawn et à l'assignation de lane
     def _lane_centers(self) -> list[int]:
         if self.lanes_y and len(self.lanes_y) >= 3:
             return [int(self.lanes_y[0]), int(self.lanes_y[1]), int(self.lanes_y[2])]
@@ -143,7 +142,6 @@ class EnemySpawnerSystem(esper.Processor):
             max(0, min(h - 1, (5 * h) // 6)),
         ]
 
-    # Recherche une position marchable proche
     def _find_walkable_near(self, x: int, y: int, max_r: int = 10):
         w = int(getattr(self.nav_grid, "width", 0))
         h = int(getattr(self.nav_grid, "height", 0))
@@ -170,12 +168,10 @@ class EnemySpawnerSystem(esper.Processor):
                                 return nx, ny
         return None
 
-    # Assure que l'ennemi ait une wallet
     def _ensure_enemy_wallet(self):
         if not esper.has_component(self.enemy_pyramid_eid, Wallet):
             esper.add_component(self.enemy_pyramid_eid, Wallet(solde=max(0.0, self.enemy_start_money)))
 
-    # Ajoute les revenus passifs de l'ennemi
     def _enemy_income_tick(self, dt: float):
         """Ajoute les revenus passifs à l'ennemi."""
         self._ensure_enemy_wallet()
@@ -193,7 +189,6 @@ class EnemySpawnerSystem(esper.Processor):
         except Exception:
             pass
 
-    # Récupère l'argent actuel de l'ennemi
     def _get_enemy_money(self) -> float:
         try:
             wallet = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
@@ -201,7 +196,6 @@ class EnemySpawnerSystem(esper.Processor):
         except Exception:
             return 0.0
 
-    # Récupère le niveau de la pyramide ennemie
     def _get_enemy_pyramid_level(self) -> int:
         try:
             if esper.has_component(self.enemy_pyramid_eid, PyramidLevel):
@@ -210,7 +204,6 @@ class EnemySpawnerSystem(esper.Processor):
             pass
         return 1
 
-    # Tente d'upgrader la pyramide ennemie
     def _try_upgrade_pyramid(self):
         """Tente d'upgrader la pyramide ennemie."""
         try:
@@ -247,7 +240,6 @@ class EnemySpawnerSystem(esper.Processor):
             pass
         return False
 
-    # Choix aléatoire pondéré de l'unité
     def _pick_unit_key(self) -> str:
         """Choix aléatoire pondéré de l'unité."""
         keys = ["S", "M", "L"]
@@ -256,12 +248,10 @@ class EnemySpawnerSystem(esper.Processor):
             return self.rng.choice(keys)
         return self.rng.choices(keys, weights=weights, k=1)[0]
 
-    # Choix aléatoire de la lane
     def _pick_lane_idx(self) -> int:
         """Choix complètement aléatoire de la lane."""
         return self.rng.randint(0, 2)
 
-    # Compte les unités ennemies vivantes
     def _count_enemy_units(self) -> int:
         """Compte les unités ennemies vivantes."""
         count = 0
@@ -270,7 +260,6 @@ class EnemySpawnerSystem(esper.Processor):
                 count += 1
         return count
 
-    # Spawne une unité ennemie
     def _spawn_one(self):
         """Spawn une unité ennemie."""
         # Vérifier limite
@@ -336,7 +325,6 @@ class EnemySpawnerSystem(esper.Processor):
         self.last_message = f"Enemy spawn {unit_key} (lane {lane_idx + 1})"
         return True
 
-    # Ligne de debug pour le HUD
     def hud_line(self) -> str:
         """Ligne de debug pour le HUD."""
         nxt = max(0.0, self.spawn_interval - self.timer)
@@ -345,7 +333,6 @@ class EnemySpawnerSystem(esper.Processor):
         diff_name = {"easy": "Facile", "medium": "Moyen", "hard": "Difficile", "extreme": "Extreme"}
         return f"Ennemi: {money:.0f} | Nv.{level} | Vague {self.wave_index} | {diff_name.get(self.difficulty, self.difficulty)}"
 
-    # Processus permettant de gérer les spawns et upgrades
     def process(self, dt: float):
         if dt <= 0:
             return

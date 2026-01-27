@@ -18,14 +18,11 @@ class PyramidLevel:
         elif self.level > 5:
             self.level = 5
 
-    """Retourne une chaîne de caractères représentant l'objet."""
     def __str__(self):
         return f"PyramidLevel(level={self.level})"
 
-    """Retourne une chaîne de caractères représentant l'objet."""
     def __repr__(self):
         return self.__str__()
-    
-    """Retourne un dictionnaire représentant l'objet."""
+
     def to_dict(self):
         return {"level": self.level}
