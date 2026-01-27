@@ -37,7 +37,6 @@ class LaneRouteSystem:
         # Tracking des unités
         self.assigned_ents = set()
 
-    # Fonctions permettant de mettre à jour les chemins et lanes
     def set_lane_paths(self, lane_paths: list):
         """Met à jour les chemins pré-calculés (appelé par game_app)."""
         self.lane_paths = [list(p) for p in lane_paths] if lane_paths else [[], [], []]
@@ -45,7 +44,6 @@ class LaneRouteSystem:
         # Forcer le recalcul des chemins pour toutes les unités
         self.assigned_ents.clear()
 
-    # Fonctions permettant d'assigner des lanes aux unités
     def set_lane_for_entity(self, ent: int, lane_idx: int):
         """Assigne une lane à une unité et lui donne le chemin correspondant."""
         lane_idx = max(0, min(2, int(lane_idx)))
@@ -65,7 +63,6 @@ class LaneRouteSystem:
         # Forcer la réassignation du chemin
         self.assigned_ents.discard(int(ent))
 
-    # Fonctions qui aident à assigner les chemins
     def _closest_lane_idx(self, y: int) -> int:
         """Trouve la lane la plus proche de la position Y."""
         best_i = 0
@@ -77,7 +74,6 @@ class LaneRouteSystem:
                 best_i = i
         return max(0, min(2, best_i))
 
-    # Fonction qui trouve le point le plus proche sur un chemin
     def _find_closest_point_on_path(self, pos: tuple, path: list) -> int:
         """Trouve l'index du point le plus proche sur le chemin."""
         if not path:
@@ -95,7 +91,6 @@ class LaneRouteSystem:
         
         return best_idx
 
-    # Fonctuon principale permettant d'assigner les chemins aux unités
     def process(self, dt: float):
         # Nettoyer les entités qui n'existent plus
         dead_ents = [ent for ent in self.assigned_ents if not esper.entity_exists(ent)]

@@ -1110,7 +1110,7 @@ class GameApp:
         hit_cooldown = float(combat_cfg.get("hit_cooldown", 0.6))
         projectile_speed = float(combat_cfg.get("projectile_speed", 12.0))
         
-        self.nav_system = NavigationSystem(arrive_radius=0.05, attack_range=attack_range)
+        self.nav_system = NavigationSystem(arrive_radius=0.05, attack_range=attack_range, align_tolerance=align_tolerance)
 
         # objectifs fallback (lane2)
         goal_team1 = self.grid_utils.attack_cell_for_lane(1, 1)  # milieu
@@ -1132,7 +1132,8 @@ class GameApp:
         self.combat_system = CombatSystem(
             attack_range=attack_range,
             hit_cooldown=hit_cooldown,
-            projectile_speed=projectile_speed
+            projectile_speed=projectile_speed,
+            align_tolerance=align_tolerance
         )
 
         try:

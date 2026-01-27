@@ -22,7 +22,7 @@ from Game.Ecs.Components.pathProgress import PathProgress
 
 Point = Tuple[int, int]
 
-# Fonction heuristique pour A*
+
 def _heuristic(a: Point, b: Point, diagonal: bool) -> float:
     dx = abs(a[0] - b[0])
     dy = abs(a[1] - b[1])
@@ -32,7 +32,7 @@ def _heuristic(a: Point, b: Point, diagonal: bool) -> float:
         return (dx + dy) + (F * min(dx, dy)) - min(dx, dy)
     return dx + dy
 
-#Fonction pour obtenir les voisins (4 ou 8 directions)
+
 def _neighbors_4_8(pos: Point, width: Optional[int], height: Optional[int], diagonal: bool) -> List[Point]:
     x, y = pos
     nbrs = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
@@ -46,7 +46,7 @@ def _neighbors_4_8(pos: Point, width: Optional[int], height: Optional[int], diag
             out.append((nx, ny))
     return out
 
-#Fonction A* pour GridMap
+
 def astar_gridmap(grid_map, start: Point, goal: Point, allow_diagonal: bool = False) -> Optional[List[Point]]:
     """A* using `GridMap` / `GridTile` objects.
 
@@ -110,7 +110,7 @@ def astar_gridmap(grid_map, start: Point, goal: Point, allow_diagonal: bool = Fa
 
     return None
 
-#Fonction A* pour une grille numpy simple
+
 def astar_numpy(grid, start: Point, goal: Point, allow_diagonal: bool = True) -> Optional[List[Point]]:
     """A* over a 2D grid (list of lists), where 0 = free, 1 = blocked.
 
@@ -158,7 +158,7 @@ def astar_numpy(grid, start: Point, goal: Point, allow_diagonal: bool = True) ->
 
     return None
 
-#Fonction A* pour une grille
+
 def astar(grid_map_or_grid, start: Point, goal: Point, allow_diagonal: bool = False) -> Optional[List[Point]]:
     """Dispatching helper: accepts either a `GridMap` (has `.tiles`) or a 2D grid (list of lists).
 
@@ -169,7 +169,7 @@ def astar(grid_map_or_grid, start: Point, goal: Point, allow_diagonal: bool = Fa
 
     return astar_numpy(grid_map_or_grid, start, goal, allow_diagonal=allow_diagonal)
 
-# Classe AStarPathfindingSystem
+
 def astar_navgrid(nav_grid, start: Point, goal: Point, allow_diagonal: bool = False) -> Optional[List[Point]]:
     """A* spécialisé pour NavigationGrid (is_walkable + movement_cost)."""
     width = getattr(nav_grid, "width", None)

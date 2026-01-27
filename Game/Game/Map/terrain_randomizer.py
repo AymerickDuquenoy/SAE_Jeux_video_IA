@@ -8,11 +8,11 @@ from Game.Map.NavigationGrid import NavigationGrid
 
 Pos = Tuple[int, int]
 
-# Clamp une valeur entre lo et hi
+
 def _clamp(v: int, lo: int, hi: int) -> int:
     return lo if v < lo else hi if v > hi else v
 
-# Vérifie si une position est proche d'une liste de positions protégées
+
 def _is_near_any(pos: Pos, protected: set[Pos], radius: int) -> bool:
     x, y = pos
     for px, py in protected:
@@ -20,7 +20,7 @@ def _is_near_any(pos: Pos, protected: set[Pos], radius: int) -> bool:
             return True
     return False
 
-# Applique un terrain aléatoire sur une grille de navigation existante
+
 def apply_random_terrain(
     nav: NavigationGrid,
     *,

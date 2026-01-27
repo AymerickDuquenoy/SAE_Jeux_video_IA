@@ -7,7 +7,7 @@
   },
   "combat": {
     "attack_range": 2.0,
-    "align_tolerance": 0.5,
+    "align_tolerance": 0.8,
     "hit_cooldown": 0.6,
     "projectile_speed": 12.0
   },

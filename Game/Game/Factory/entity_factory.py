@@ -17,7 +17,6 @@ class EntityFactory:
         self.tile_size = int(tile_size)
         self.balance = balance or {}
 
-    # Accède de manière sécurisée aux données imbriquées du dictionnaire balance
     def _get(self, *keys, default=None):
         d = self.balance
         for k in keys:
@@ -26,7 +25,6 @@ class EntityFactory:
             d = d[k]
         return d
 
-    # Récupère le coefficient k pour le calcul du coût (C = kP)
     def _get_k(self) -> float:
         # k pour C = kP (on tente plusieurs emplacements possibles)
         k = self._get("sae", "k_cost_per_power", default=None)
@@ -36,7 +34,6 @@ class EntityFactory:
             k = self._get("constraints", "k", default=None)
         return float(k) if k is not None else 10.0
 
-    # Récupère la constante pour la contrainte V + B = constante
     def _get_v_plus_b(self) -> float:
         # constante pour V + B = cste
         vb = self._get("sae", "v_plus_b", default=None)
@@ -46,7 +43,6 @@ class EntityFactory:
             vb = self._get("constraints", "v_plus_b_const", default=None)
         return float(vb) if vb is not None else 100.0
 
-    # Convertit la valeur V de la SAE en vitesse de déplacement en cases/seconde
     def _v_to_move_speed(self, v_value: float) -> float:
         """
         Convertit le V de la SAE (ex: 0..100) en vitesse de déplacement (cases / seconde).
@@ -62,7 +58,6 @@ class EntityFactory:
         # évite une vitesse trop lente
         return max(0.6, speed)
 
-    # Calcule les statistiques d'une unité selon les contraintes de la SAE
     def compute_unit_stats(self, unit_key: str) -> UnitStats:
         unit_key = str(unit_key).upper().strip()
         data = self._get("units", unit_key, default={})
@@ -83,7 +78,6 @@ class EntityFactory:
 
         return UnitStats(speed=speed, power=power, armor=armor, cost=cost)
 
-    # Crée une entité pyramide avec ses composants initiaux
     def create_pyramid(self, *, team_id: int, grid_pos: tuple[int, int]) -> int:
         gx, gy = int(grid_pos[0]), int(grid_pos[1])
 
@@ -108,7 +102,6 @@ class EntityFactory:
 
         return self.world.create_entity(*components)
 
-    # Crée une entité unité avec tous ses composants calculés selon la SAE
     def create_unit(self, unit_key: str, *, team_id: int, grid_pos: tuple[int, int]) -> int:
         gx, gy = int(grid_pos[0]), int(grid_pos[1])
 

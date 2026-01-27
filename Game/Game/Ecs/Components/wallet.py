@@ -15,14 +15,11 @@ class Wallet:
         if self.solde < 0:
             self.solde = 0.0
 
-    """Retourne une chaîne de caractères représentant l'objet."""
     def __str__(self):
         return f"Wallet(solde={self.solde})"
 
-    """Overloading de repr pour faciliter le debugging"""
     def __repr__(self):
         return self.__str__()
 
-    """Retourne un dictionnaire représentant l'objet."""
     def to_dict(self):
         return {"solde": self.solde}

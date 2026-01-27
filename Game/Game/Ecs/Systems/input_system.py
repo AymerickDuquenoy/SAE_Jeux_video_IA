@@ -18,6 +18,7 @@ class InputSystem(esper.Processor):
     - Z / X / C : choisir la lane (1 / 2 / 3)
     - 1 / 2 / 3 : spawn S / M / L dans la lane sélectionnée
     """
+
     def __init__(self, factory, balance, player_pyramid_eid: int, enemy_pyramid_eid: int, nav_grid, *, lanes_y=None):
         super().__init__()
         self.factory = factory
@@ -34,14 +35,12 @@ class InputSystem(esper.Processor):
 
         self._prev = {}
 
-    # fonctions qui détectent les touches "just pressed"
     def _just_pressed(self, keys, key_code: int) -> bool:
         now = bool(keys[key_code])
         before = bool(self._prev.get(key_code, False))
         self._prev[key_code] = now
         return now and not before
 
-    # Fonction qui trouve le centre des lanes si non fourni
     def _lane_centers(self) -> list[int]:
         h = int(getattr(self.nav_grid, "height", 0))
         if h <= 0:
@@ -51,7 +50,6 @@ class InputSystem(esper.Processor):
         c3 = max(0, min(h - 1, (5 * h) // 6))
         return [c1, c2, c3]
 
-    # Fonction qui trouve une case walkable autour
     def _find_walkable_near(self, x: int, y: int, max_r: int = 8):
         for r in range(0, max_r + 1):
             for dy in range(-r, r + 1):
@@ -68,7 +66,6 @@ class InputSystem(esper.Processor):
                                 return nx, ny
         return None
 
-    # Fonction qui calcule la vitesse de mouvement
     def _v_to_move_speed(self, v_value: float) -> float:
         vb = float(self.balance.get("sae", {}).get("v_plus_b", 100.0))
         vb = vb if vb > 0 else 100.0
@@ -79,7 +76,6 @@ class InputSystem(esper.Processor):
 
         return max(0.6, speed)
 
-    # Fonction qui spawn un unité pour le joueur
     def _spawn_unit_player(self, unit_key: str):
         try:
             wallet = esper.component_for_entity(self.player_pyramid_eid, Wallet)
@@ -97,7 +93,7 @@ class InputSystem(esper.Processor):
         px = int(round(p_t.pos[0]))
         py = int(round(p_t.pos[1]))
 
-        # spawn "collé" à la pyramide selon la lane (haut / droite / bas)
+        # ✅ spawn "collé" à la pyramide selon la lane (haut / droite / bas)
         if self.selected_lane == 0:
             spawn_x = px
             spawn_y = py - 1
@@ -150,7 +146,6 @@ class InputSystem(esper.Processor):
 
         self.last_message = f"Spawn {unit_key} in lane {self.selected_lane + 1}"
 
-    # Fonction qui traite l'input chaque frame
     def process(self, dt: float):
         keys = pygame.key.get_pressed()
 

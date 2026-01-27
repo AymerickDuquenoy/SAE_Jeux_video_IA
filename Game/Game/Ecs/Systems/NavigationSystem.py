@@ -1,11 +1,10 @@
 """
 NavigationSystem - Déplacement des unités le long de leur chemin.
 
-RÈGLES CRITIQUES :
-1. Suit le chemin A* nœud par nœud (mouvements axiaux uniquement)
-2. S'arrête pour combattre une TROUPE ennemie (Target.type == "unit")
-3. Continue vers la case d'attaque même si pyramide à portée
-4. La pyramide est attaquée seulement quand l'unité est ARRIVÉE
+RÈGLES :
+1. Suit le chemin A* nœud par nœud
+2. S'arrête pour combattre une TROUPE ennemie (Target.type == "unit") à portée
+3. Continue vers la pyramide sinon
 
 IA DIFFÉRENCIÉE :
 - Momie/Dromadaire: s'arrêtent pour combattre les troupes
@@ -28,17 +27,17 @@ from Game.Ecs.Components.unitStats import UnitStats
 
 class NavigationSystem(esper.Processor):
     """
-    Déplacement propre style jeu flash.
-    Mouvements strictement axiaux (horizontal OU vertical, jamais diagonal).
+    Déplacement des unités.
+    S'arrête quand une cible ennemie est à portée.
     """
 
-    def __init__(self, *, arrive_radius: float = 0.15, min_speed: float = 0.0, attack_range: float = 2.0):
+    def __init__(self, *, arrive_radius: float = 0.15, min_speed: float = 0.0, attack_range: float = 2.0, align_tolerance: float = 0.7):
         super().__init__()
         self.arrive_radius = float(arrive_radius)
         self.min_speed = float(min_speed)
-        self.attack_range = float(attack_range)  # Synchronisé avec TargetingSystem et CombatSystem
+        self.attack_range = float(attack_range)
+        self.align_tolerance = float(align_tolerance)  # Non utilisé mais gardé pour compatibilité
 
-    #Fonction pour déterminer le type d'unité
     def _get_unit_type(self, ent: int) -> str:
         """Détermine le type d'unité (S/M/L) basé sur les stats."""
         if not esper.has_component(ent, UnitStats):
@@ -52,7 +51,6 @@ class NavigationSystem(esper.Processor):
         else:
             return "L"  # Sphinx
 
-    # Permet de traiter le déplacement des unités
     def process(self, dt: float):
         if dt <= 0:
             return
@@ -65,16 +63,14 @@ class NavigationSystem(esper.Processor):
             # Identifier le type d'unité
             unit_type = self._get_unit_type(ent)
 
-            # Vérifier si on doit combattre une TROUPE
+            # Vérifier si on doit s'arrêter pour combattre
             # SPHINX (L) ne s'arrête JAMAIS - il fonce vers la pyramide
-            should_stop_for_combat = False
-            should_align_for_combat = False
-            align_target_pos = None
+            should_stop = False
             
             if unit_type != "L" and esper.has_component(ent, Target):
                 target = esper.component_for_entity(ent, Target)
                 
-                # Gérer les TROUPES ennemies (pas pyramides)
+                # S'arrêter uniquement pour les TROUPES ennemies (pas pyramides)
                 if target.type == "unit":
                     tid = int(target.entity_id)
                     if esper.entity_exists(tid):
@@ -84,71 +80,17 @@ class NavigationSystem(esper.Processor):
                             if not th.is_dead:
                                 ax, ay = transform.pos
                                 bx, by = tt.pos
-                                dx = bx - ax
-                                dy = by - ay
-                                dist = math.hypot(dx, dy)
+                                dist = math.hypot(bx - ax, by - ay)
                                 
-                                # Alignement axial (tolérance 0.5 comme CombatSystem)
-                                aligned_h = abs(dy) <= 0.5  # Même Y
-                                aligned_v = abs(dx) <= 0.5  # Même X
-                                aligned = aligned_h or aligned_v
-                                
+                                # À portée d'attaque → s'arrêter
                                 if dist <= self.attack_range:
-                                    if aligned:
-                                        # À portée ET aligné → s'arrêter et tirer
-                                        should_stop_for_combat = True
-                                    else:
-                                        # À portée mais PAS aligné → se déplacer pour s'aligner
-                                        should_align_for_combat = True
-                                        align_target_pos = (bx, by)
-                                elif dist <= 0.5:
-                                    # Très proche → évite de passer à travers
-                                    should_stop_for_combat = True
+                                    should_stop = True
                         except:
                             pass
 
-            if should_stop_for_combat:
+            if should_stop:
                 velocity.vx = 0.0
                 velocity.vy = 0.0
-                continue
-
-            # Se déplacer pour s'aligner avec la cible (au lieu de suivre le chemin)
-            if should_align_for_combat and align_target_pos:
-                ax, ay = transform.pos
-                bx, by = align_target_pos
-                dx = bx - ax
-                dy = by - ay
-                
-                # Choisir le mouvement qui nous aligne le plus vite
-                # Si on n'est pas aligné horizontalement (|dy| > 0.5), bouger en Y
-                # Sinon bouger en X pour se rapprocher
-                if abs(dy) > 0.5:
-                    # Pas aligné en Y → bouger verticalement
-                    dirx = 0.0
-                    diry = 1.0 if dy > 0 else -1.0
-                elif abs(dx) > 0.5:
-                    # Pas aligné en X → bouger horizontalement
-                    dirx = 1.0 if dx > 0 else -1.0
-                    diry = 0.0
-                else:
-                    # Déjà aligné, ne devrait pas arriver ici
-                    velocity.vx = 0.0
-                    velocity.vy = 0.0
-                    continue
-                
-                # Vitesse effective (terrain)
-                eff_speed = max(self.min_speed, float(speed.base) * float(speed.mult_terrain))
-                if esper.has_component(ent, TerrainEffect):
-                    terr = esper.component_for_entity(ent, TerrainEffect)
-                    eff_speed = terr.apply(eff_speed)
-                
-                velocity.vx = dirx * eff_speed
-                velocity.vy = diry * eff_speed
-                
-                # Mouvement
-                new_x = ax + velocity.vx * dt
-                new_y = ay + velocity.vy * dt
-                transform.pos = (new_x, new_y)
                 continue
 
             # Suivre le chemin normal
@@ -181,13 +123,10 @@ class NavigationSystem(esper.Processor):
                 continue
 
             # Direction vers le nœud - MOUVEMENT AXIAL STRICT
-            # On bouge soit en X soit en Y, jamais les deux
             if abs(dx) > abs(dy):
-                # Mouvement horizontal prioritaire
                 dirx = 1.0 if dx > 0 else -1.0
                 diry = 0.0
             else:
-                # Mouvement vertical
                 dirx = 0.0
                 diry = 1.0 if dy > 0 else -1.0
 

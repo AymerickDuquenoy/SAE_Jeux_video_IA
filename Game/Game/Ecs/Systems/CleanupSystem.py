@@ -14,7 +14,6 @@ class CleanupSystem(esper.Processor):
         super().__init__()
         self.protected = set(protected_entities or set())
 
-    # Permet de nettoyer les entités mortes ou expirées
     def process(self, dt: float):
         to_delete = []
 
