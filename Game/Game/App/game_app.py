@@ -12,8 +12,6 @@ class GameApp:
         self.width = width
         self.height = height
         self.title = title
-
-
         self.boot = GameBoot(self)
         self.save = GameSave(self)
         self.map = GameMap(self)
@@ -31,3 +29,7 @@ class GameApp:
             self.match.update()
             self.draw.render()
         self.boot.shutdown()
+        
+def main():
+    app = GameApp()
+    app.run()

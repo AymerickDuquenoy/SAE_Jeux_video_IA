@@ -1,4 +1,4 @@
-# Game/App/map_generator.py
+# Game/Game/App/map_generator.py
 """
 Map generation utilities for Antique War.
 Handles TMX file generation for random maps.

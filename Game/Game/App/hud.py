@@ -1,4 +1,4 @@
-# Game/App/hud.py
+# Game/Game/App/hud.py
 """
 HUD (Heads-Up Display) module for Antique War.
 Handles in-game UI: resource display, health bars, lane selector, etc.
