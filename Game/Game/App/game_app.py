@@ -6,7 +6,6 @@ import pygame
 import esper
 from pathlib import Path
 import xml.etree.ElementTree as ET
-import heapq
 
 # Pour le blur du menu
 try:
@@ -43,7 +42,9 @@ from Game.Ecs.Systems.EnemySpawnerSystem import EnemySpawnerSystem
 from Game.Ecs.Systems.LaneRouteSystem import LaneRouteSystem
 from Game.Services.terrain_randomizer import apply_random_terrain
 
-from Game.App.game_renderer import GameRenderer
+from Game.App.renderers.game_renderer import GameRenderer
+from Game.App.utils.lane_pathfinder import LanePathfinder
+from Game.App.utils.grid_utils import GridUtils
 
 
 # UI : si tu as déjà Game/App/ui.py, il sera pris
@@ -237,6 +238,10 @@ class GameApp:
 
         # Renderer
         self.renderer = None
+        
+        # Utils
+        self.pathfinder = None
+        self.grid_utils = None
 
         self.camera_x = 0.0
         self.camera_y = 0.0
@@ -391,6 +396,10 @@ class GameApp:
         # Créer le renderer
         self.renderer = GameRenderer(self)
         
+        # Créer les utils
+        self.pathfinder = LanePathfinder(self)
+        self.grid_utils = GridUtils(self)
+        
         # Charger l'image de fond du menu
         self.menu_background = None
         try:
@@ -506,167 +515,12 @@ class GameApp:
         self.last_map_name = map_path.name
         self.game_map = GridMap(str(map_path))
 
-    def _build_nav_from_map(self) -> NavigationGrid:
-        nav = NavigationGrid(int(self.game_map.width), int(self.game_map.height))
-        vmax = float(getattr(GridTile, "VITESSE_MAX", 10.0))
-
-        for t in getattr(self.game_map, "tiles", []):
-            speed = float(getattr(t, "speed", vmax))
-            walkable = bool(getattr(t, "walkable", True))
-            mult = 0.0 if speed <= 0 else max(0.0, min(1.0, speed / vmax))
-            nav.set_cell(int(t.x), int(t.y), walkable=walkable, mult=mult)
-
-        # bordure interdite (zone vitesse=0)
-        w = int(getattr(nav, "width", 0))
-        h = int(getattr(nav, "height", 0))
-        if w > 0 and h > 0:
-            for x in range(w):
-                nav.set_cell(x, 0, walkable=False, mult=0.0)
-                nav.set_cell(x, h - 1, walkable=False, mult=0.0)
-            for y in range(h):
-                nav.set_cell(0, y, walkable=False, mult=0.0)
-                nav.set_cell(w - 1, y, walkable=False, mult=0.0)
-
-        return nav
-
     # ----------------------------
     # Helpers
     # ----------------------------
     def _clamp(self, v: int, lo: int, hi: int) -> int:
         return lo if v < lo else hi if v > hi else v
 
-    def _find_walkable_near(self, x: int, y: int, max_r: int = 10):
-        w = int(getattr(self.nav_grid, "width", 0))
-        h = int(getattr(self.nav_grid, "height", 0))
-        for r in range(0, max_r + 1):
-            for dy in range(-r, r + 1):
-                for dx in range(-r, r + 1):
-                    nx = x + dx
-                    ny = y + dy
-                    if 0 <= nx < w and 0 <= ny < h:
-                        if self.nav_grid.is_walkable(nx, ny):
-                            return nx, ny
-        return None
-
-    def _force_open_cell(self, x: int, y: int, mult: float = 1.0):
-        """Force une case walkable/open (utile après apply_random_terrain)."""
-        try:
-            self.nav_grid.set_cell(int(x), int(y), walkable=True, mult=float(mult))
-            return
-        except Exception:
-            pass
-
-        # fallback si jamais set_cell n'existe pas
-        try:
-            self.nav_grid.walkable[int(y)][int(x)] = True
-        except Exception:
-            pass
-        try:
-            self.nav_grid.mult[int(y)][int(x)] = float(mult)
-        except Exception:
-            pass
-
-    def _attack_cell_for_lane(self, team_id: int, lane_idx: int) -> tuple[int, int]:
-        """
-        Case d'attaque alignée avec la lane.
-        Utilise lanes_y pour garantir l'alignement correct.
-        """
-        w = int(getattr(self.nav_grid, "width", 0))
-        h = int(getattr(self.nav_grid, "height", 0))
-        px, py = int(self.player_pyr_pos[0]), int(self.player_pyr_pos[1])
-        ex, ey = int(self.enemy_pyr_pos[0]), int(self.enemy_pyr_pos[1])
-        
-        # Utiliser lanes_y pour l'alignement Y
-        lane_y = int(self.lanes_y[lane_idx])
-
-        if team_id == 1:
-            # Joueur attaque pyramide ennemie (à droite)
-            if lane_idx == 1:
-                ax, ay = ex - 1, lane_y
-            else:
-                ax, ay = ex, lane_y
-        else:
-            # Ennemi attaque pyramide joueur (à gauche)
-            if lane_idx == 1:
-                ax, ay = px + 1, lane_y
-            else:
-                ax, ay = px, lane_y
-
-        ax = max(1, min(w - 2, int(ax)))
-        ay = max(1, min(h - 2, int(ay)))
-        return (ax, ay)
-
-    def _carve_pyramid_connectors(self):
-        """
-        ✅ Assure que les 3 lanes peuvent rejoindre des cases d'attaque différentes
-        - lane1 : haut
-        - lane2 : milieu
-        - lane3 : bas
-        """
-        if not self.nav_grid:
-            return
-
-        w = int(getattr(self.nav_grid, "width", 0))
-        h = int(getattr(self.nav_grid, "height", 0))
-        if w <= 0 or h <= 0:
-            return
-
-        px, py = int(self.player_pyr_pos[0]), int(self.player_pyr_pos[1])
-        ex, ey = int(self.enemy_pyr_pos[0]), int(self.enemy_pyr_pos[1])
-
-        # colonnes "couloir"
-        col_player = max(1, min(w - 2, px + 1))
-        col_enemy = max(1, min(w - 2, ex - 1))
-
-        ymin = max(1, min(self.lanes_y + [py, ey]))
-        ymax = min(h - 2, max(self.lanes_y + [py, ey]))
-
-        # couloir vertical près des pyramides
-        for y in range(ymin, ymax + 1):
-            self._force_open_cell(col_player, y, 1.0)
-            self._force_open_cell(col_enemy, y, 1.0)
-
-        # entrées lanes (sur les couloirs)
-        for ly in self.lanes_y:
-            self._force_open_cell(col_player, int(ly), 1.0)
-            self._force_open_cell(col_enemy, int(ly), 1.0)
-
-        # ✅ cases d'attaque lane (haut/milieu/bas) -> forcées walkable
-        for lane_idx in (0, 1, 2):
-            ax1, ay1 = self._attack_cell_for_lane(1, lane_idx)
-            ax2, ay2 = self._attack_cell_for_lane(2, lane_idx)
-            self._force_open_cell(ax1, ay1, 1.0)
-            self._force_open_cell(ax2, ay2, 1.0)
-
-        # petit pad autour pyramides (anti blocage)
-        for dx, dy in ((0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)):
-            x1 = max(1, min(w - 2, px + dx))
-            y1 = max(1, min(h - 2, py + dy))
-            self._force_open_cell(x1, y1, 1.0)
-
-            x2 = max(1, min(w - 2, ex + dx))
-            y2 = max(1, min(h - 2, ey + dy))
-            self._force_open_cell(x2, y2, 1.0)
-
-        # ✅ mini-connecteurs autour de la pyramide ennemie pour lane1/lane3 (haut/bas)
-        for (xx, yy) in (
-            (ex - 1, ey - 1),
-            (ex - 1, ey + 1),
-            (ex, ey - 1),
-            (ex, ey + 1),
-        ):
-            if 1 <= xx < w - 1 and 1 <= yy < h - 1:
-                self._force_open_cell(xx, yy, 1.0)
-
-        # ✅ mini-connecteurs autour de la pyramide joueur
-        for (xx, yy) in (
-            (px + 1, py - 1),
-            (px + 1, py + 1),
-            (px, py - 1),
-            (px, py + 1),
-        ):
-            if 1 <= xx < w - 1 and 1 <= yy < h - 1:
-                self._force_open_cell(xx, yy, 1.0)
 
     def _selected_lane_index(self) -> int:
         return self._get_selected_lane_index()
@@ -774,174 +628,6 @@ class GameApp:
             occupied.add((tx, ty))
             self._known_units.add(ent)
 
-    # ----------------------------
-    # A* preview (même coût que ta nav mult)
-    # ----------------------------
-    def _cell_cost(self, x: int, y: int) -> float:
-        try:
-            m = float(self.nav_grid.mult[y][x])
-        except Exception:
-            m = 1.0
-        if m <= 0.0:
-            return 999999.0
-        return 1.0 / max(0.05, m)
-
-    def _astar_preview(self, start: tuple[int, int], goal: tuple[int, int]) -> list[tuple[int, int]]:
-        if not self.nav_grid:
-            return []
-        if start == goal:
-            return [start]
-
-        w = int(getattr(self.nav_grid, "width", 0))
-        h = int(getattr(self.nav_grid, "height", 0))
-        if w <= 0 or h <= 0:
-            return []
-
-        sx, sy = start
-        gx, gy = goal
-        if not self.nav_grid.is_walkable(sx, sy):
-            return []
-        if not self.nav_grid.is_walkable(gx, gy):
-            return []
-
-        def h_manh(a: tuple[int, int], b: tuple[int, int]) -> float:
-            return abs(a[0] - b[0]) + abs(a[1] - b[1])
-
-        open_heap = []
-        heapq.heappush(open_heap, (0.0, 0.0, (sx, sy)))
-
-        came = {}
-        gscore = {(sx, sy): 0.0}
-        closed = set()
-
-        while open_heap:
-            _f, g, cur = heapq.heappop(open_heap)
-            if cur in closed:
-                continue
-
-            if cur == (gx, gy):
-                out = [cur]
-                while cur in came:
-                    cur = came[cur]
-                    out.append(cur)
-                out.reverse()
-                return out
-
-            closed.add(cur)
-            cx, cy = cur
-
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                nx = cx + dx
-                ny = cy + dy
-                if nx <= 0 or nx >= w - 1 or ny <= 0 or ny >= h - 1:
-                    continue
-                if not self.nav_grid.is_walkable(nx, ny):
-                    continue
-
-                ng = g + self._cell_cost(nx, ny)
-                if (nx, ny) not in gscore or ng < gscore[(nx, ny)]:
-                    gscore[(nx, ny)] = ng
-                    came[(nx, ny)] = (cx, cy)
-                    nf = ng + h_manh((nx, ny), (gx, gy))
-                    heapq.heappush(open_heap, (nf, ng, (nx, ny)))
-
-        return []
-
-    def _compute_lane_route_path(self, lane_idx: int) -> list[tuple[int, int]]:
-        """
-        Lane = chemin A* COMPLET de pyramide joueur à pyramide ennemie.
-        
-        - Lane 1 (idx 0): HAUT de pyramide → lane haut → HAUT de pyramide ennemie
-        - Lane 2 (idx 1): MILIEU (droite) de pyramide → lane milieu → MILIEU (gauche) de pyramide ennemie  
-        - Lane 3 (idx 2): BAS de pyramide → lane bas → BAS de pyramide ennemie
-        """
-        if not self.nav_grid:
-            return []
-
-        lane_idx = max(0, min(2, int(lane_idx)))
-        lane_y = int(self.lanes_y[lane_idx])
-
-        px = int(self.player_pyr_pos[0])
-        py = int(self.player_pyr_pos[1])
-        ex = int(self.enemy_pyr_pos[0])
-        ey = int(self.enemy_pyr_pos[1])
-
-        h = int(getattr(self.nav_grid, "height", 0))
-        w = int(getattr(self.nav_grid, "width", 0))
-
-        def clamp_xy(x: int, y: int) -> tuple[int, int]:
-            x = max(1, min(w - 2, int(x)))
-            y = max(1, min(h - 2, int(y)))
-            return (x, y)
-
-        # Ancres selon la lane
-        if lane_idx == 0:
-            # Lane 1 = HAUT des pyramides
-            start_anchor = clamp_xy(px, py - 1)
-            end_anchor = clamp_xy(ex, ey - 1)
-        elif lane_idx == 1:
-            # Lane 2 = MILIEU (côtés des pyramides)
-            start_anchor = clamp_xy(px + 1, py)
-            end_anchor = clamp_xy(ex - 1, ey)
-        else:
-            # Lane 3 = BAS des pyramides
-            start_anchor = clamp_xy(px, py + 1)
-            end_anchor = clamp_xy(ex, ey + 1)
-
-        # Points d'entrée/sortie sur la lane horizontale
-        entry_point = clamp_xy(px + 1, lane_y)
-        exit_point = clamp_xy(ex - 1, lane_y)
-
-        # Trouver des cases walkable proches
-        s = self._find_walkable_near(start_anchor[0], start_anchor[1], max_r=12)
-        e = self._find_walkable_near(entry_point[0], entry_point[1], max_r=12)
-        x = self._find_walkable_near(exit_point[0], exit_point[1], max_r=12)
-        g = self._find_walkable_near(end_anchor[0], end_anchor[1], max_r=12)
-
-        if not s or not e or not x or not g:
-            return []
-
-        # Construire le chemin en 3 segments
-        # 1. Ancre joueur → Entrée lane
-        p1 = self._astar_preview(s, e)
-        # 2. Entrée lane → Sortie lane (parcours horizontal)
-        p2 = self._astar_preview(e, x)
-        # 3. Sortie lane → Ancre ennemie
-        p3 = self._astar_preview(x, g)
-
-        # Assembler le chemin complet
-        out = []
-        if p1:
-            out += p1
-        if p2:
-            out += p2[1:] if out else p2
-        if p3:
-            out += p3[1:] if out else p3
-
-        return out
-
-    def _recalculate_all_lanes(self):
-        """Recalcule tous les chemins de lanes (joueur ET ennemi = même chemin, sens inverse)."""
-        if not self.nav_grid:
-            return
-        
-        # Chemins du joueur (gauche → droite) calculés par A*
-        self.lane_paths = [
-            self._compute_lane_route_path(0),
-            self._compute_lane_route_path(1),
-            self._compute_lane_route_path(2),
-        ]
-        
-        # Chemins de l'ennemi = MÊME chemin, mais inversé (droite → gauche)
-        self.lane_paths_enemy = [
-            list(reversed(self.lane_paths[0])) if self.lane_paths[0] else [],
-            list(reversed(self.lane_paths[1])) if self.lane_paths[1] else [],
-            list(reversed(self.lane_paths[2])) if self.lane_paths[2] else [],
-        ]
-        
-        # Informer LaneRouteSystem des nouveaux chemins
-        if hasattr(self, 'lane_route_system') and self.lane_route_system:
-            self.lane_route_system.set_lane_paths(self.lane_paths)
 
     def _flash_lane(self):
         self.lane_flash_timer = float(self.lane_flash_duration)
@@ -1036,7 +722,7 @@ class GameApp:
         self._load_map_for_visual(chosen)
 
         # 2) nav depuis TMX
-        self.nav_grid = self._build_nav_from_map()
+        self.nav_grid = self.grid_utils.build_nav_from_map()
 
         mp = self.balance.get("map", {})
 
@@ -1044,7 +730,7 @@ class GameApp:
         def safe_pos(pos):
             x = int(pos[0])
             y = int(pos[1])
-            found = self._find_walkable_near(x, y, max_r=12)
+            found = self.grid_utils.find_walkable_near(x, y, max_r=12)
             return found if found else (x, y)
 
         self.player_pyr_pos = safe_pos(mp.get("player_pyramid", (2, 10)))
@@ -1098,10 +784,10 @@ class GameApp:
         )
 
         # ✅ connectors lanes haut/milieu/bas + cases d’attaque walkable
-        self._carve_pyramid_connectors()
+        self.grid_utils.carve_pyramid_connectors()
 
         # 6) pré-calcul des 3 lanes (joueur ET ennemi)
-        self._recalculate_all_lanes()
+        self.pathfinder.recalculate_all_lanes()
 
         # 7) world propre par match
         self.world = World(name=f"match_{self.match_index}")
@@ -1165,8 +851,8 @@ class GameApp:
         self.nav_system = NavigationSystem(arrive_radius=0.05, attack_range=attack_range)
 
         # objectifs fallback (lane2)
-        goal_team1 = self._attack_cell_for_lane(1, 1)  # milieu
-        goal_team2 = self._attack_cell_for_lane(2, 1)  # milieu
+        goal_team1 = self.grid_utils.attack_cell_for_lane(1, 1)  # milieu
+        goal_team2 = self.grid_utils.attack_cell_for_lane(2, 1)  # milieu
 
         goals_by_team = {
             1: GridPosition(int(goal_team1[0]), int(goal_team1[1])),
@@ -1232,7 +918,7 @@ class GameApp:
                 self.nav_grid,
                 self.player_pyramid_eid,
                 self.enemy_pyramid_eid,
-                on_terrain_change=self._recalculate_all_lanes  # Recalculer les lanes au sandstorm
+                on_terrain_change=self.pathfinder.recalculate_all_lanes  # Recalculer les lanes au sandstorm
             )
             print("[OK] RandomEventSystem created")
         except Exception as e:
