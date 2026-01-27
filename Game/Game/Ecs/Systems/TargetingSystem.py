@@ -36,6 +36,7 @@ class TargetingSystem(esper.Processor):
         self.pyramid_ids = set(int(x) for x in pyramid_ids)
         self.attack_range = float(attack_range)  # Synchronisé avec CombatSystem et NavigationSystem
 
+    #Fonctions utilitaires permettant de déterminer le type d'unité, l'index de lane, et si l'unité est arrivée à destination.
     def _get_unit_type(self, stats: UnitStats) -> str:
         """Détermine le type d'unité (S/M/L) basé sur les stats."""
         power = getattr(stats, 'power', 0)
@@ -46,12 +47,14 @@ class TargetingSystem(esper.Processor):
         else:
             return "L"  # Sphinx
 
+    # Permet de récupérer l'index de lane d'une entité.
     def _get_lane_index(self, ent: int) -> int:
         """Retourne l'index de lane (-1 si pas de lane)."""
         if esper.has_component(ent, Lane):
             return esper.component_for_entity(ent, Lane).index
         return -1
 
+    # Permet de savoir si l'unité est arrivée à destination
     def _is_arrived(self, ent: int) -> bool:
         """Vérifie si l'unité est arrivée à destination."""
         if not esper.has_component(ent, Path):
@@ -70,6 +73,7 @@ class TargetingSystem(esper.Processor):
         
         return False
 
+    # Fonction principale de traitement du système de ciblage.
     def process(self, dt: float):
         # Collecter toutes les cibles potentielles avec leur lane
         candidates = []
