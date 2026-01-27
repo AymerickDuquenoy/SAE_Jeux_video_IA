@@ -17,15 +17,19 @@ class IncomeRate:
         """Retourne le taux effectif (rate × multiplier)."""
         return self.rate * self.multiplier
 
+    """Initialisation post-construction pour garantir les contraintes sur rate."""
     def __post_init__(self):
         if self.rate < 0:
             self.rate = 1.0
 
+    """Retourne une chaîne de caractères représentant l'objet."""
     def __str__(self):
         return f"IncomeRate(rate={self.rate}, mult={self.multiplier})"
 
+    """Retourne une chaîne de caractères représentant l'objet."""
     def __repr__(self):
         return self.__str__()
 
+    """Retourne un dictionnaire représentant l'objet."""
     def to_dict(self):
         return {"rate": self.rate, "multiplier": self.multiplier}

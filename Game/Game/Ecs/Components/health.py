@@ -11,6 +11,7 @@ class Health:
     hp_max: int = 100
     hp: int = field(default=100)
 
+    """Initialisation post-construction pour garantir les contraintes sur hp et hp_max."""
     def __post_init__(self):
         if self.hp_max < 1:
             self.hp_max = 1

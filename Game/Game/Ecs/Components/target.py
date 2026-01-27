@@ -12,6 +12,7 @@ class Target:
     entity_id: int = None
     type: str = "entity" 
 
+    """Initialisation post-construction pour garantir les contraintes sur entity_id."""
     def __post_init__(self):
         # S'assurer que entity_id est défini
         if self.entity_id is None:

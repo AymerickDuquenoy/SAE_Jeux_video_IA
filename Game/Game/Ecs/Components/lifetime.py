@@ -19,10 +19,12 @@ class Lifetime:
         if dt > 0.0:
             self.ttl = max(0.0, self.ttl - dt)
 
+    """Retourne une chaîne de caractères représentant l'objet."""
     @property
     def expired(self) -> bool:
         """True si la durée de vie est écoulée."""
         return self.ttl == 0.0 if self.ttl >= 0.0 else False
 
+    """Retourne un dictionnaire représentant l'objet."""
     def to_dict(self):
         return {"ttl": float(self.ttl), "despawn_on_death": bool(self.despawn_on_death)}
