@@ -38,6 +38,7 @@ class PyramidDefenseSystem(esper.Processor):
         # Cooldown par pyramide
         self.timers = {pid: 0.0 for pid in self.pyramid_ids}
 
+    # Mettre à jour les timers
     def process(self, dt: float):
         if dt <= 0:
             return

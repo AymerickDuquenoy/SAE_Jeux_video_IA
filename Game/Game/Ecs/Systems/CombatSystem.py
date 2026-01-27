@@ -36,6 +36,7 @@ class CombatSystem(esper.Processor):
         self._sound_manager = None
         self._shoot_sound_cooldown = 0.0
 
+    # Fonction qui charge le sound_manager au besoin
     def _get_sound_manager(self):
         if self._sound_manager is None:
             try:
@@ -45,6 +46,7 @@ class CombatSystem(esper.Processor):
                 pass
         return self._sound_manager
 
+    # Permet de gérer les tirs des unités
     def process(self, dt: float):
         if dt <= 0:
             return

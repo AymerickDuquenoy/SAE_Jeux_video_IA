@@ -49,9 +49,11 @@ class UpgradeSystem:
         self._requested = False
         self.last_message = ""
 
+    # Demande un upgrade (sera traité au prochain process)
     def request_upgrade(self):
         self._requested = True
 
+    # Assure les composants Wallet, IncomeRate et PyramidLevel existent
     def _ensure_components(self):
         eid = self.player_pyramid_eid
 
@@ -73,6 +75,7 @@ class UpgradeSystem:
         except Exception:
             esper.add_component(eid, PyramidLevel(level=1))
 
+    # Retourne le coût pour le niveau suivant d'upgrade de la pyramide
     def _get_upgrade_cost(self, current_level: int) -> float:
         """Retourne le coût pour passer au niveau suivant."""
         idx = current_level - 1  # niveau 1 -> index 0, niveau 2 -> index 1, etc.
@@ -80,6 +83,7 @@ class UpgradeSystem:
             return float(self.upgrade_costs[idx])
         return 99999.0  # Coût impossible si hors limites
 
+    # Traite la demande d'upgrade
     def process(self, dt: float):
         if not self._requested:
             return

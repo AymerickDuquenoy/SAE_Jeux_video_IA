@@ -23,6 +23,7 @@ class ProjectileSystem(esper.Processor):
         self.reward_divisor = float(reward_divisor) if float(reward_divisor) > 0 else 2.0
         self._sound_manager = None
 
+    # Permet d'accéder au sound manager sans créer de dépendance circulaire
     def _get_sound_manager(self):
         if self._sound_manager is None:
             try:
@@ -32,6 +33,7 @@ class ProjectileSystem(esper.Processor):
                 pass
         return self._sound_manager
 
+    # Fonction permettant de traiter les projectiles
     def process(self, dt: float):
         if dt <= 0:
             return

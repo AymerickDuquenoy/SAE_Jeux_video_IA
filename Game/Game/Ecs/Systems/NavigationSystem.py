@@ -38,6 +38,7 @@ class NavigationSystem(esper.Processor):
         self.min_speed = float(min_speed)
         self.attack_range = float(attack_range)  # Synchronisé avec TargetingSystem et CombatSystem
 
+    #Fonction pour déterminer le type d'unité
     def _get_unit_type(self, ent: int) -> str:
         """Détermine le type d'unité (S/M/L) basé sur les stats."""
         if not esper.has_component(ent, UnitStats):
@@ -51,6 +52,7 @@ class NavigationSystem(esper.Processor):
         else:
             return "L"  # Sphinx
 
+    # Permet de traiter le déplacement des unités
     def process(self, dt: float):
         if dt <= 0:
             return

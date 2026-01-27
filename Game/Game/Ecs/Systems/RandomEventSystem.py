@@ -49,12 +49,14 @@ class RandomEventSystem(esper.Processor):
         self.current_message = ""
         self.message_timer = 0.0
 
+    #Permet d'obtenir le message actuel de l'événement
     def get_message(self) -> str:
         """Retourne le message d'événement actuel."""
         if self.message_timer > 0:
             return self.current_message
         return ""
 
+    # Gérer les événements
     def process(self, dt: float):
         if dt <= 0:
             return
@@ -76,6 +78,7 @@ class RandomEventSystem(esper.Processor):
             self.time_since_last_event = 0.0
             self.next_event_time = random.uniform(self.min_interval, self.max_interval)
 
+    # Générer un événement aléatoire
     def _trigger_random_event(self):
         """Déclenche un événement aléatoire."""
         event_type = random.choice(["sandstorm", "locusts", "whip_bonus"])
@@ -86,7 +89,8 @@ class RandomEventSystem(esper.Processor):
             self._start_locusts()
         else:
             self._start_whip_bonus()
-
+            
+    # Événements spécifiques
     def _start_sandstorm(self):
         """Tempête de sable : échange zones Open ↔ Dusty."""
         self.active_event = "sandstorm"
@@ -114,6 +118,7 @@ class RandomEventSystem(esper.Processor):
             if self.on_terrain_change:
                 self.on_terrain_change()
 
+    # Générer sauterelles
     def _start_locusts(self):
         """Nuée de sauterelles : 15 dégâts à toutes les troupes."""
         self.active_event = "locusts"
@@ -128,7 +133,8 @@ class RandomEventSystem(esper.Processor):
             if hp.is_dead:
                 continue
             hp.hp = max(0, hp.hp - damage)
-
+ 
+    # Générer bonus fouets
     def _start_whip_bonus(self):
         """Bonus fouets : +25% production pour une équipe."""
         self.active_event = "whip_bonus"
@@ -146,6 +152,7 @@ class RandomEventSystem(esper.Processor):
             income = esper.component_for_entity(pyramid_eid, IncomeRate)
             income.multiplier = 1.25  # Toujours utiliser multiplier
 
+    # Terminer événement actif
     def _end_event(self):
         """Termine l'événement actif."""
         if self.active_event == "sandstorm" and self.original_mults:
