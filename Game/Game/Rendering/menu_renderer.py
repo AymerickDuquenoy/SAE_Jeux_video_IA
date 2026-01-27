@@ -23,17 +23,17 @@ class MenuRenderer:
         title_shadow = (80, 60, 40)
         
         title_surf = self.app.font_title.render("Antique War", True, title_shadow)
-        title_rect = title_surf.get_rect(center=(self.app.width // 2 + 3, 63))
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2 + 3, 63))
         self.app.screen.blit(title_surf, title_rect)
         
         title_surf = self.app.font_title.render("Antique War", True, title_color)
-        title_rect = title_surf.get_rect(center=(self.app.width // 2, 60))
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2, 60))
         self.app.screen.blit(title_surf, title_rect)
         
         # Record
         record_text = f"Record: {self.app.best_time:.1f}s | Kills: {self.app.best_kills}"
         rec = self.app.font_small.render(record_text, True, (255, 245, 220))
-        rr = rec.get_rect(center=(self.app.width // 2, self.app.height - 30))
+        rr = rec.get_rect(center=(self.app.base_width // 2, self.app.base_height - 30))
         
         padding = 10
         bg_rect = pygame.Rect(rr.left - padding, rr.top - 4, rr.width + padding * 2, rr.height + 8)
@@ -58,17 +58,17 @@ class MenuRenderer:
         title_shadow = (80, 60, 40)
         
         title_surf = self.app.font_title.render("Difficulte", True, title_shadow)
-        title_rect = title_surf.get_rect(center=(self.app.width // 2 + 3, 63))
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2 + 3, 63))
         self.app.screen.blit(title_surf, title_rect)
         
         title_surf = self.app.font_title.render("Difficulte", True, title_color)
-        title_rect = title_surf.get_rect(center=(self.app.width // 2, 60))
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2, 60))
         self.app.screen.blit(title_surf, title_rect)
         
         # Panneau
         panel_w, panel_h = 360, 380
-        panel_x = self.app.width // 2 - panel_w // 2
-        panel_y = self.app.height // 2 - panel_h // 2 + 30
+        panel_x = self.app.base_width // 2 - panel_w // 2
+        panel_y = self.app.base_height // 2 - panel_h // 2 + 30
         self.base.draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
         
         gold_dark = (139, 119, 77)
@@ -77,7 +77,7 @@ class MenuRenderer:
         # Boutons de difficulté
         btn_w = 260
         btn_h = 45
-        btn_x = self.app.width // 2 - btn_w // 2
+        btn_x = self.app.base_width // 2 - btn_w // 2
         btn_y_start = panel_y + 25
         btn_gap = 85
         
@@ -97,7 +97,7 @@ class MenuRenderer:
             btn.draw(self.app.screen)
             
             desc_surf = self.app.font_small.render(desc, True, color)
-            desc_rect = desc_surf.get_rect(centerx=self.app.width // 2, top=btn.rect.bottom + 5)
+            desc_rect = desc_surf.get_rect(centerx=self.app.base_width // 2, top=btn.rect.bottom + 5)
             self.app.screen.blit(desc_surf, desc_rect)
         
         self.app.btn_back.draw(self.app.screen)
@@ -112,52 +112,87 @@ class MenuRenderer:
         title_shadow = (80, 60, 40)
         
         title_surf = self.app.font_title.render("Options", True, title_shadow)
-        title_rect = title_surf.get_rect(center=(self.app.width // 2 + 3, 63))
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2 + 3, 53))
         self.app.screen.blit(title_surf, title_rect)
         
         title_surf = self.app.font_title.render("Options", True, title_color)
-        title_rect = title_surf.get_rect(center=(self.app.width // 2, 60))
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2, 50))
         self.app.screen.blit(title_surf, title_rect)
         
-        # Panneau
-        panel_w = 580
-        panel_h = 320
-        panel_x = self.app.width // 2 - panel_w // 2
-        panel_y = self.app.height // 2 - panel_h // 2
-        self.base.draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
-        
         gold_dark = (139, 119, 77)
-        pygame.draw.rect(self.app.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=10)
+        gold_light = (179, 156, 101)
         
-        # Toggles
-        toggle_w = 520
-        toggle_h = 45
-        toggle_x = self.app.width // 2 - toggle_w // 2
-        toggle_gap = 90
+        # Panneau gauche : Affichage
+        panel1_w = 280
+        panel1_h = 260
+        panel1_x = self.app.base_width // 2 - panel1_w - 15
+        panel1_y = 120
+        self.base.draw_blurred_panel(panel1_x, panel1_y, panel1_w, panel1_h, blur_radius=10)
+        pygame.draw.rect(self.app.screen, gold_dark, (panel1_x, panel1_y, panel1_w, panel1_h), 3, border_radius=10)
         
-        # Toggle 1 : Lanes
-        toggle1_y = panel_y + 25
-        self.app.tog_lanes.rect = pygame.Rect(toggle_x, toggle1_y, toggle_w, toggle_h)
+        # Titre panneau Affichage
+        cat1_surf = self.app.font.render("AFFICHAGE", True, gold_light)
+        cat1_rect = cat1_surf.get_rect(centerx=panel1_x + panel1_w // 2, top=panel1_y + 12)
+        self.app.screen.blit(cat1_surf, cat1_rect)
+        
+        # Séparateur
+        pygame.draw.line(self.app.screen, gold_dark, (panel1_x + 15, panel1_y + 40), (panel1_x + panel1_w - 15, panel1_y + 40), 2)
+        
+        # Toggle plein écran
+        toggle_w = panel1_w - 30
+        toggle_h = 42
+        toggle_x = panel1_x + 15
+        toggle1_y = panel1_y + 55
+        
+        self.app.tog_fullscreen.rect = pygame.Rect(toggle_x, toggle1_y, toggle_w, toggle_h)
+        self.app.tog_fullscreen.draw(self.app.screen)
+        
+        # Sélecteur de résolution (pour le mode fenêtré)
+        toggle2_y = toggle1_y + toggle_h + 12
+        self.app.sel_resolution.rect = pygame.Rect(toggle_x, toggle2_y, toggle_w, toggle_h)
+        self.app.sel_resolution.draw(self.app.screen)
+        
+        # Bouton Appliquer
+        btn_w = 140
+        btn_h = 40
+        btn_x = panel1_x + (panel1_w - btn_w) // 2
+        btn_y = panel1_y + panel1_h - btn_h - 20
+        self.app.btn_apply_display.rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
+        self.app.btn_apply_display.draw(self.app.screen)
+        
+        # Panneau droit : Jeu
+        panel2_w = 280
+        panel2_h = 260
+        panel2_x = self.app.base_width // 2 + 15
+        panel2_y = 120
+        self.base.draw_blurred_panel(panel2_x, panel2_y, panel2_w, panel2_h, blur_radius=10)
+        pygame.draw.rect(self.app.screen, gold_dark, (panel2_x, panel2_y, panel2_w, panel2_h), 3, border_radius=10)
+        
+        # Titre panneau Jeu
+        cat2_surf = self.app.font.render("JEU", True, gold_light)
+        cat2_rect = cat2_surf.get_rect(centerx=panel2_x + panel2_w // 2, top=panel2_y + 12)
+        self.app.screen.blit(cat2_surf, cat2_rect)
+        
+        # Séparateur
+        pygame.draw.line(self.app.screen, gold_dark, (panel2_x + 15, panel2_y + 40), (panel2_x + panel2_w - 15, panel2_y + 40), 2)
+        
+        # Toggles du jeu (labels courts)
+        toggle_x2 = panel2_x + 15
+        toggle_w2 = panel2_w - 30
+        toggle_h2 = 42
+        toggle_gap = 52
+        
+        toggle1_y2 = panel2_y + 55
+        self.app.tog_lanes.rect = pygame.Rect(toggle_x2, toggle1_y2, toggle_w2, toggle_h2)
         self.app.tog_lanes.draw(self.app.screen)
-        desc1_surf = self.app.font_small.render("Chemins des 3 lanes (joueur=cyan, ennemi=orange)", True, (160, 155, 140))
-        desc1_rect = desc1_surf.get_rect(centerx=self.app.width // 2, top=self.app.tog_lanes.rect.bottom + 3)
-        self.app.screen.blit(desc1_surf, desc1_rect)
         
-        # Toggle 2 : Terrain
-        toggle2_y = toggle1_y + toggle_gap
-        self.app.tog_terrain.rect = pygame.Rect(toggle_x, toggle2_y, toggle_w, toggle_h)
+        toggle2_y2 = toggle1_y2 + toggle_gap
+        self.app.tog_terrain.rect = pygame.Rect(toggle_x2, toggle2_y2, toggle_w2, toggle_h2)
         self.app.tog_terrain.draw(self.app.screen)
-        desc2_surf = self.app.font_small.render("Zones lentes (marron) et interdites (rouge)", True, (160, 155, 140))
-        desc2_rect = desc2_surf.get_rect(centerx=self.app.width // 2, top=self.app.tog_terrain.rect.bottom + 3)
-        self.app.screen.blit(desc2_surf, desc2_rect)
         
-        # Toggle 3 : Paths
-        toggle3_y = toggle2_y + toggle_gap
-        self.app.tog_paths.rect = pygame.Rect(toggle_x, toggle3_y, toggle_w, toggle_h)
+        toggle3_y2 = toggle2_y2 + toggle_gap
+        self.app.tog_paths.rect = pygame.Rect(toggle_x2, toggle3_y2, toggle_w2, toggle_h2)
         self.app.tog_paths.draw(self.app.screen)
-        desc3_surf = self.app.font_small.render("Trajet de chaque unite en temps reel", True, (160, 155, 140))
-        desc3_rect = desc3_surf.get_rect(centerx=self.app.width // 2, top=self.app.tog_paths.rect.bottom + 3)
-        self.app.screen.blit(desc3_surf, desc3_rect)
         
         self.app.btn_back.draw(self.app.screen)
 
@@ -166,18 +201,18 @@ class MenuRenderer:
         if self.app.menu_background:
             self.app.screen.blit(self.app.menu_background, (0, 0))
         
-        self.base.draw_blurred_panel(48, 120, self.app.width - 96, self.app.height - 190, blur_radius=10)
+        self.base.draw_blurred_panel(48, 120, self.app.base_width - 96, self.app.base_height - 190, blur_radius=10)
         
         # Titre
         title_color = (222, 205, 163)
         title_shadow = (80, 60, 40)
         
         title_surf = self.app.font_title.render("Commandes", True, title_shadow)
-        title_rect = title_surf.get_rect(center=(self.app.width // 2 + 3, 63))
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2 + 3, 63))
         self.app.screen.blit(title_surf, title_rect)
         
         title_surf = self.app.font_title.render("Commandes", True, title_color)
-        title_rect = title_surf.get_rect(center=(self.app.width // 2, 60))
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2, 60))
         self.app.screen.blit(title_surf, title_rect)
         
         self.app.btn_back.draw(self.app.screen)
@@ -185,12 +220,13 @@ class MenuRenderer:
         x = 70
         y = 150
         lines = [
-            "Déplacement caméra : flèches",
+            "Deplacement camera : fleches",
             "Choisir la lane : Z / X / C (ou W / X / C)",
             "Lane cliquable : boutons Lane 1/2/3 en haut",
-            "Spawn unités : 1 / 2 / 3",
+            "Spawn unites : 1 / 2 / 3",
             "Upgrade pyramide : U",
             "Pause : ESC",
+            "Plein ecran : F11",
         ]
         for txt in lines:
             surf = self.app.font.render(txt, True, (222, 205, 163))
@@ -199,7 +235,7 @@ class MenuRenderer:
 
     def draw_pause(self):
         """Dessine l'écran de pause."""
-        overlay = pygame.Surface((self.app.width, self.app.height), pygame.SRCALPHA)
+        overlay = pygame.Surface((self.app.base_width, self.app.base_height), pygame.SRCALPHA)
         overlay.fill((15, 12, 8, 180))
         self.app.screen.blit(overlay, (0, 0))
         
@@ -209,8 +245,8 @@ class MenuRenderer:
         bg_dark = (45, 38, 30)
         
         panel_w, panel_h = 320, 340
-        panel_x = self.app.width // 2 - panel_w // 2
-        panel_y = self.app.height // 2 - panel_h // 2
+        panel_x = self.app.base_width // 2 - panel_w // 2
+        panel_y = self.app.base_height // 2 - panel_h // 2
         
         panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
         panel_surf.fill((bg_dark[0], bg_dark[1], bg_dark[2], 245))
@@ -220,18 +256,18 @@ class MenuRenderer:
         pygame.draw.rect(self.app.screen, gold_light, (panel_x + 6, panel_y + 6, panel_w - 12, panel_h - 12), 2, border_radius=10)
         
         title_surf = self.app.font_big.render("PAUSE", True, text_gold)
-        title_rect = title_surf.get_rect(centerx=self.app.width // 2, top=panel_y + 25)
+        title_rect = title_surf.get_rect(centerx=self.app.base_width // 2, top=panel_y + 25)
         self.app.screen.blit(title_surf, title_rect)
         
         sub_surf = self.app.font_small.render("ESC pour reprendre", True, (150, 145, 135))
-        sub_rect = sub_surf.get_rect(centerx=self.app.width // 2, top=panel_y + 65)
+        sub_rect = sub_surf.get_rect(centerx=self.app.base_width // 2, top=panel_y + 65)
         self.app.screen.blit(sub_surf, sub_rect)
         
         sep_y = panel_y + 95
         pygame.draw.line(self.app.screen, gold_light, (panel_x + 30, sep_y), (panel_x + panel_w - 30, sep_y), 2)
         
         btn_w, btn_h = 200, 42
-        btn_x = self.app.width // 2 - btn_w // 2
+        btn_x = self.app.base_width // 2 - btn_w // 2
         btn_y = panel_y + 115
         btn_gap = 52
         
@@ -247,7 +283,7 @@ class MenuRenderer:
 
     def draw_game_over(self):
         """Dessine l'écran de fin de partie."""
-        overlay = pygame.Surface((self.app.width, self.app.height), pygame.SRCALPHA)
+        overlay = pygame.Surface((self.app.base_width, self.app.base_height), pygame.SRCALPHA)
         overlay.fill((15, 12, 8, 200))
         self.app.screen.blit(overlay, (0, 0))
         
@@ -257,8 +293,8 @@ class MenuRenderer:
         bg_dark = (45, 38, 30)
         
         panel_w, panel_h = 420, 320
-        panel_x = self.app.width // 2 - panel_w // 2
-        panel_y = self.app.height // 2 - panel_h // 2 - 20
+        panel_x = self.app.base_width // 2 - panel_w // 2
+        panel_y = self.app.base_height // 2 - panel_h // 2 - 20
         
         panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
         panel_surf.fill((bg_dark[0], bg_dark[1], bg_dark[2], 245))
@@ -272,7 +308,7 @@ class MenuRenderer:
         title_text = "VICTOIRE" if is_victory else "DEFAITE"
         
         title_surf = self.app.font_big.render(title_text, True, title_color)
-        title_rect = title_surf.get_rect(centerx=self.app.width // 2, top=panel_y + 25)
+        title_rect = title_surf.get_rect(centerx=self.app.base_width // 2, top=panel_y + 25)
         self.app.screen.blit(title_surf, title_rect)
         
         sep_y = panel_y + 75
@@ -314,13 +350,13 @@ class MenuRenderer:
         
         record_txt = f"Record: {self.app.best_time:.1f}s  |  Meilleur kills: {self.app.best_kills}"
         record_surf = self.app.font_small.render(record_txt, True, (150, 145, 135))
-        record_rect = record_surf.get_rect(centerx=self.app.width // 2, top=stats_y)
+        record_rect = record_surf.get_rect(centerx=self.app.base_width // 2, top=stats_y)
         self.app.screen.blit(record_surf, record_rect)
         
         if self.app.match_time >= self.app.best_time or self.app.enemy_kills >= self.app.best_kills:
             stats_y += 28
             new_rec = self.app.font.render("NOUVEAU RECORD!", True, (255, 220, 80))
-            rec_rect = new_rec.get_rect(centerx=self.app.width // 2, top=stats_y)
+            rec_rect = new_rec.get_rect(centerx=self.app.base_width // 2, top=stats_y)
             bg_rect = rec_rect.inflate(24, 10)
             pygame.draw.rect(self.app.screen, (80, 60, 30), bg_rect, border_radius=6)
             pygame.draw.rect(self.app.screen, gold_light, bg_rect, 2, border_radius=6)
@@ -329,8 +365,8 @@ class MenuRenderer:
         btn_w, btn_h = 180, 45
         btn_y = panel_y + panel_h + 25
         
-        self.app.btn_restart.rect = pygame.Rect(self.app.width // 2 - btn_w // 2, btn_y, btn_w, btn_h)
-        self.app.btn_menu.rect = pygame.Rect(self.app.width // 2 - btn_w // 2, btn_y + btn_h + 15, btn_w, btn_h)
+        self.app.btn_restart.rect = pygame.Rect(self.app.base_width // 2 - btn_w // 2, btn_y, btn_w, btn_h)
+        self.app.btn_menu.rect = pygame.Rect(self.app.base_width // 2 - btn_w // 2, btn_y + btn_h + 15, btn_w, btn_h)
         
         self.app.btn_restart.draw(self.app.screen)
         self.app.btn_menu.draw(self.app.screen)

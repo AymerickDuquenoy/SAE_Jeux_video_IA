@@ -49,7 +49,7 @@ from Game.Utils.grid_utils import GridUtils
 
 # UI : si tu as déjà Game/App/ui.py, il sera pris
 try:
-    from Game.App.ui import UIButton, UIToggle, UIMenuButton
+    from Game.App.ui import UIButton, UIToggle, UIMenuButton, UISelector
 except Exception:
     class UIButton:
         def __init__(self, rect, text, font):
@@ -182,13 +182,33 @@ def _write_generated_tmx(
 
 
 class GameApp:
-    def __init__(self, width: int = 960, height: int = 640, title: str = "Antique War"):
+    def __init__(self, width: int = 800, height: int = 600, title: str = "Antique War"):
+        # Résolution de base (interne) - le jeu est TOUJOURS rendu à cette taille
+        self.base_width = 960
+        self.base_height = 640
+        
+        # Résolution de la fenêtre (mode fenêtré)
+        self.window_width = width
+        self.window_height = height
+        
+        # Résolution actuelle de l'écran (peut changer selon le mode)
         self.width = width
         self.height = height
         self.title = title
 
         self.screen = None
+        self.game_surface = None  # Surface de rendu interne (toujours 960x640)
         self.running = False
+        
+        # Résolution native de l'écran (sera mise à jour dans boot())
+        self.native_width = 1920
+        self.native_height = 1080
+        
+        # Scaling info
+        self.scale_x = 1.0
+        self.scale_y = 1.0
+        self.render_offset_x = 0
+        self.render_offset_y = 0
 
         self.font = None
         self.font_small = None
@@ -258,6 +278,22 @@ class GameApp:
         self.opt_show_terrain = False
         self.opt_show_paths = False
         self.opt_show_lanes = False
+        
+        # Options d'affichage
+        self.available_resolutions = [
+            (800, 600),
+            (1024, 768),
+            (1280, 720),
+            (1280, 800),
+            (1366, 768),
+            (1440, 900),
+            (1600, 900),
+            (1920, 1080),
+        ]
+        self.current_resolution_index = 0  # 800x600 par défaut
+        
+        # Mode d'affichage simplifié : juste fenêtré ou plein écran
+        self.is_fullscreen = False
 
         # ✅ lane sélectionnée (0..2) -> lane2 par défaut
         self.selected_lane_idx = 1
@@ -307,6 +343,11 @@ class GameApp:
         self.tog_terrain = None
         self.tog_paths = None
         self.tog_lanes = None
+        
+        # Options d'affichage
+        self.tog_fullscreen = None
+        self.sel_resolution = None
+        self.btn_apply_display = None
 
         # lane selector HUD
         self.lane_btn_rects = []
@@ -384,7 +425,36 @@ class GameApp:
     def boot(self):
         pygame.init()
         pygame.display.set_caption(self.title)
-        self.screen = pygame.display.set_mode((self.width, self.height))
+        
+        # Stocker la résolution native de l'écran AVANT de créer une fenêtre
+        # Utiliser get_desktop_sizes() qui est plus fiable (pygame 2.x)
+        try:
+            desktop_sizes = pygame.display.get_desktop_sizes()
+            if desktop_sizes:
+                self.native_width, self.native_height = desktop_sizes[0]
+            else:
+                info = pygame.display.Info()
+                self.native_width = info.current_w
+                self.native_height = info.current_h
+        except AttributeError:
+            # Fallback pour les anciennes versions de pygame
+            info = pygame.display.Info()
+            self.native_width = info.current_w
+            self.native_height = info.current_h
+        
+        print(f"[INFO] Native screen resolution: {self.native_width}x{self.native_height}")
+        
+        # Charger les paramètres d'affichage sauvegardés
+        self._load_display_settings()
+        
+        # Créer la fenêtre
+        self._apply_display_mode()
+        
+        # Créer la surface de rendu interne (toujours à la résolution de base)
+        self.game_surface = pygame.Surface((self.base_width, self.base_height))
+        
+        # Calculer le scaling initial
+        self._update_scaling()
 
         self.font = pygame.font.SysFont("consolas", 18)
         self.font_small = pygame.font.SysFont("consolas", 14)
@@ -400,13 +470,13 @@ class GameApp:
         self.pathfinder = LanePathfinder(self)
         self.grid_utils = GridUtils(self)
         
-        # Charger l'image de fond du menu
+        # Charger l'image de fond du menu (à la taille de BASE, pas de la fenêtre)
         self.menu_background = None
         try:
             menu_bg_path = self.game_root / "assets" / "menu_background.png"
             if menu_bg_path.exists():
                 self.menu_background = pygame.image.load(str(menu_bg_path)).convert()
-                self.menu_background = pygame.transform.scale(self.menu_background, (self.width, self.height))
+                self.menu_background = pygame.transform.scale(self.menu_background, (self.base_width, self.base_height))
         except Exception as e:
             print(f"[WARN] Could not load menu background: {e}")
 
@@ -437,6 +507,54 @@ class GameApp:
         pygame.quit()
 
     # ----------------------------
+    # Scaling / Display
+    # ----------------------------
+    def _update_scaling(self):
+        """Calcule les facteurs de scale pour remplir tout l'écran."""
+        # Vérifier la vraie taille de l'écran
+        actual_size = self.screen.get_size()
+        print(f"[SCALE] self.width={self.width}, self.height={self.height}, screen.get_size()={actual_size}")
+        
+        # Utiliser la vraie taille de l'écran
+        self.width, self.height = actual_size
+        
+        # Scale séparé pour X et Y (remplit tout l'écran, légère déformation possible)
+        self.scale_x = self.width / self.base_width
+        self.scale_y = self.height / self.base_height
+        
+        # Pas d'offset - on remplit tout
+        self.render_offset_x = 0
+        self.render_offset_y = 0
+        
+        print(f"[SCALE] Final: {self.width}x{self.height} -> scale ({self.scale_x:.3f}, {self.scale_y:.3f})")
+        
+        print(f"[SCALE] {self.width}x{self.height} -> scale ({self.scale_x:.2f}, {self.scale_y:.2f})")
+
+    def _screen_to_game_coords(self, screen_x: int, screen_y: int) -> tuple[int, int]:
+        """Convertit les coordonnées écran en coordonnées de jeu (surface interne)."""
+        if self.scale_x <= 0 or self.scale_y <= 0:
+            return screen_x, screen_y
+        
+        # Convertir avec les facteurs de scale
+        game_x = screen_x / self.scale_x
+        game_y = screen_y / self.scale_y
+        
+        # Clamper aux limites de la surface de jeu
+        game_x = max(0, min(self.base_width - 1, int(game_x)))
+        game_y = max(0, min(self.base_height - 1, int(game_y)))
+        
+        return game_x, game_y
+
+    def _render_to_screen(self):
+        """Scale et affiche la game_surface sur l'écran (remplit tout)."""
+        # Scaler la surface de jeu pour remplir tout l'écran
+        if self.width > 0 and self.height > 0:
+            scaled_surface = pygame.transform.scale(self.game_surface, (self.width, self.height))
+            self.screen.blit(scaled_surface, (0, 0))
+        
+        pygame.display.flip()
+
+    # ----------------------------
     # UI
     # ----------------------------
     def _sync_toggle_value(self, toggle, value: bool):
@@ -452,9 +570,142 @@ class GameApp:
                 except Exception:
                     pass
 
+    def _apply_display_mode(self):
+        """Applique le mode d'affichage actuel."""
+        if self.is_fullscreen:
+            target_w, target_h = self.window_width, self.window_height
+            
+            # Si c'est la résolution native, utiliser FULLSCREEN_DESKTOP (pas de changement de résolution)
+            if target_w == self.native_width and target_h == self.native_height:
+                # Borderless fullscreen - ne change pas la résolution du moniteur
+                self.screen = pygame.display.set_mode((self.native_width, self.native_height), pygame.FULLSCREEN_DESKTOP)
+                self.width, self.height = self.screen.get_size()
+                print(f"[INFO] Using FULLSCREEN_DESKTOP for native resolution")
+            else:
+                # Fullscreen avec changement de résolution (pour les résolutions inférieures)
+                self.width, self.height = target_w, target_h
+                self.screen = pygame.display.set_mode((self.width, self.height), pygame.FULLSCREEN)
+                print(f"[INFO] Using FULLSCREEN with resolution change")
+        else:
+            # Fenêtré : utiliser la résolution de l'index sélectionné
+            # Cela évite les problèmes si window_width/height sont à la résolution native
+            if 0 <= self.current_resolution_index < len(self.available_resolutions):
+                target_w, target_h = self.available_resolutions[self.current_resolution_index]
+            else:
+                target_w, target_h = self.available_resolutions[0]  # Fallback à la première
+                self.current_resolution_index = 0
+            
+            # Sécurité : ne jamais créer une fenêtre aussi grande que l'écran
+            if target_w >= self.native_width or target_h >= self.native_height:
+                # Trouver la plus grande résolution qui rentre dans l'écran
+                for i in range(len(self.available_resolutions) - 1, -1, -1):
+                    res_w, res_h = self.available_resolutions[i]
+                    if res_w < self.native_width and res_h < self.native_height:
+                        target_w, target_h = res_w, res_h
+                        self.current_resolution_index = i
+                        break
+                else:
+                    # Fallback ultime
+                    target_w, target_h = self.available_resolutions[0]
+                    self.current_resolution_index = 0
+                print(f"[INFO] Adjusted window size to {target_w}x{target_h}")
+            
+            self.window_width, self.window_height = target_w, target_h
+            self.width, self.height = target_w, target_h
+            self.screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)
+            
+            # Mettre à jour l'UI si elle existe
+            if self.sel_resolution:
+                self.sel_resolution.index = self.current_resolution_index
+        
+        # Recréer la surface de jeu si elle existe
+        if self.game_surface is not None:
+            self.game_surface = pygame.Surface((self.base_width, self.base_height))
+        
+        self._update_scaling()
+        print(f"[OK] Display: {self.width}x{self.height}, fullscreen={self.is_fullscreen}")
+
+    def _toggle_fullscreen(self):
+        """Bascule entre fenêtré et plein écran (F11)."""
+        self.is_fullscreen = not self.is_fullscreen
+        self._apply_display_mode()
+        
+        # Mettre à jour le toggle si on est dans les options
+        if self.tog_fullscreen:
+            self.tog_fullscreen.value = self.is_fullscreen
+        
+        self._save_display_settings()
+
+    def _apply_display_settings(self):
+        """Applique les paramètres d'affichage depuis le menu Options."""
+        # Récupérer les nouvelles valeurs
+        if self.tog_fullscreen:
+            self.is_fullscreen = self.tog_fullscreen.value
+        
+        if self.sel_resolution:
+            new_resolution = self.sel_resolution.get_value()
+            if new_resolution:
+                self.window_width, self.window_height = new_resolution
+                self.current_resolution_index = self.sel_resolution.index
+        
+        self._apply_display_mode()
+        self._save_display_settings()
+
+    def _save_display_settings(self):
+        """Sauvegarde les paramètres d'affichage."""
+        try:
+            data = {}
+            if self.save_path.exists():
+                with open(self.save_path, "r") as f:
+                    data = json.load(f)
+            
+            # Sauvegarder la résolution de l'index actuel (pas window_width qui peut être la native)
+            if 0 <= self.current_resolution_index < len(self.available_resolutions):
+                save_w, save_h = self.available_resolutions[self.current_resolution_index]
+            else:
+                save_w, save_h = self.window_width, self.window_height
+            
+            data["display"] = {
+                "window_width": save_w,
+                "window_height": save_h,
+                "fullscreen": self.is_fullscreen,
+                "resolution_index": self.current_resolution_index,
+            }
+            
+            with open(self.save_path, "w") as f:
+                json.dump(data, f, indent=2)
+            print(f"[SAVE] Display settings: {save_w}x{save_h}, fullscreen={self.is_fullscreen}, index={self.current_resolution_index}")
+        except Exception as e:
+            print(f"[WARN] Could not save display settings: {e}")
+
+    def _load_display_settings(self):
+        """Charge les paramètres d'affichage sauvegardés."""
+        try:
+            if self.save_path.exists():
+                with open(self.save_path, "r") as f:
+                    data = json.load(f)
+                
+                display = data.get("display", {})
+                if display:
+                    self.is_fullscreen = display.get("fullscreen", False)
+                    self.current_resolution_index = display.get("resolution_index", 0)
+                    
+                    # Valider et utiliser l'index pour définir window_width/height
+                    if 0 <= self.current_resolution_index < len(self.available_resolutions):
+                        self.window_width, self.window_height = self.available_resolutions[self.current_resolution_index]
+                    else:
+                        # Index invalide, utiliser les valeurs sauvegardées ou défaut
+                        self.window_width = display.get("window_width", 800)
+                        self.window_height = display.get("window_height", 600)
+                        self.current_resolution_index = 0
+                    
+                    print(f"[LOAD] Display settings: {self.window_width}x{self.window_height}, fullscreen={self.is_fullscreen}, index={self.current_resolution_index}")
+        except Exception as e:
+            print(f"[WARN] Could not load display settings: {e}")
+
     def _build_ui(self):
-        cx = self.width // 2
-        cy = self.height // 2
+        cx = self.base_width // 2
+        cy = self.base_height // 2
         w = 280
         h = 54
         gap = 14
@@ -487,10 +738,21 @@ class GameApp:
         th = 54
         tg = 16
 
-        # Options de jeu (3 toggles)
-        self.tog_lanes = UIToggle(pygame.Rect(ox, oy, tw, th), "Afficher les lanes", self.font, self.opt_show_lanes)
-        self.tog_terrain = UIToggle(pygame.Rect(ox, oy + (th + tg), tw, th), "Afficher les zones de terrain", self.font, self.opt_show_terrain)
-        self.tog_paths = UIToggle(pygame.Rect(ox, oy + (th + tg) * 2, tw, th), "Afficher les chemins des unites", self.font, self.opt_show_paths)
+        # Options de jeu (3 toggles) - labels courts pour tenir dans le panneau
+        self.tog_lanes = UIToggle(pygame.Rect(ox, oy, tw, th), "Lanes", self.font, self.opt_show_lanes)
+        self.tog_terrain = UIToggle(pygame.Rect(ox, oy + (th + tg), tw, th), "Terrain", self.font, self.opt_show_terrain)
+        self.tog_paths = UIToggle(pygame.Rect(ox, oy + (th + tg) * 2, tw, th), "Chemins", self.font, self.opt_show_paths)
+
+        # Options d'affichage
+        self.tog_fullscreen = UIToggle(pygame.Rect(ox, oy, tw, th), "Plein ecran", self.font, self.is_fullscreen)
+        self.sel_resolution = UISelector(
+            pygame.Rect(ox, oy + (th + tg), tw, th),
+            "Resolution",
+            self.font,
+            self.available_resolutions,
+            self.current_resolution_index
+        )
+        self.btn_apply_display = UIMenuButton(pygame.Rect(cx - 100, oy + (th + tg) * 2 + 20, 200, 50), "Appliquer", self.font)
 
         # In-game lane buttons (repositionnés sous le nouveau HUD)
         bx = 12
@@ -1103,12 +1365,33 @@ class GameApp:
                     self.lane_flash_timer = 0.0
 
             for event in pygame.event.get():
+                # Convertir les coordonnées souris pour le scaling
+                if hasattr(event, 'pos'):
+                    screen_x, screen_y = event.pos
+                    game_x, game_y = self._screen_to_game_coords(screen_x, screen_y)
+                    # Créer un nouvel événement avec les coordonnées converties
+                    event = pygame.event.Event(event.type, {
+                        **{attr: getattr(event, attr) for attr in ['button', 'buttons', 'rel', 'touch'] if hasattr(event, attr)},
+                        'pos': (game_x, game_y)
+                    })
+                
                 if event.type == pygame.QUIT:
                     self.running = False
+                
+                # Gestion du redimensionnement de fenêtre (mode fenêtré uniquement)
+                if event.type == pygame.VIDEORESIZE and not self.is_fullscreen:
+                    self.window_width, self.window_height = event.w, event.h
+                    self.width, self.height = event.w, event.h
+                    self.screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)
+                    self._update_scaling()
 
                 if event.type == pygame.KEYDOWN:
                     if self.state in ("options", "controls") and event.key == pygame.K_ESCAPE:
                         self._return_from_submenu()
+                    
+                    # F11 pour basculer plein écran
+                    if event.key == pygame.K_F11:
+                        self._toggle_fullscreen()
 
                 # MENU
                 if self.state == "menu":
@@ -1156,6 +1439,12 @@ class GameApp:
                         self.opt_show_terrain = self.tog_terrain.value
                     if self.tog_paths.handle_event(event):
                         self.opt_show_paths = self.tog_paths.value
+                    
+                    # Options d'affichage
+                    self.tog_fullscreen.handle_event(event)
+                    self.sel_resolution.handle_event(event)
+                    if self.btn_apply_display.handle_event(event):
+                        self._apply_display_settings()
 
                 # CONTROLS
                 elif self.state == "controls":
@@ -1247,6 +1536,10 @@ class GameApp:
                     self._check_record()
 
             # DRAW
+            # Sauvegarder l'écran réel et rendre sur game_surface
+            real_screen = self.screen
+            self.screen = self.game_surface
+            
             self.screen.fill((18, 18, 22))
 
             if self.game_map:
@@ -1292,7 +1585,9 @@ class GameApp:
             elif self.state == "game_over":
                 self.renderer.draw_game_over()
 
-            pygame.display.flip()
+            # Restaurer l'écran réel et afficher le résultat scalé
+            self.screen = real_screen
+            self._render_to_screen()
 
         self.shutdown()
 

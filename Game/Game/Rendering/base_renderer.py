@@ -55,15 +55,15 @@ class BaseRenderer:
 
     def draw_center_overlay(self, title: str, subtitle: str = ""):
         """Dessine un overlay centré avec titre et sous-titre."""
-        overlay = pygame.Surface((self.app.width, self.app.height), pygame.SRCALPHA)
+        overlay = pygame.Surface((self.app.base_width, self.app.base_height), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 150))
         self.app.screen.blit(overlay, (0, 0))
 
         surf = self.app.font_big.render(title, True, (255, 255, 255))
-        rect = surf.get_rect(center=(self.app.width // 2, self.app.height // 2 - 140))
+        rect = surf.get_rect(center=(self.app.base_width // 2, self.app.base_height // 2 - 140))
         self.app.screen.blit(surf, rect)
 
         if subtitle:
             sub = self.app.font.render(subtitle, True, (230, 230, 230))
-            sr = sub.get_rect(center=(self.app.width // 2, self.app.height // 2 - 95))
+            sr = sub.get_rect(center=(self.app.base_width // 2, self.app.base_height // 2 - 95))
             self.app.screen.blit(sub, sr)

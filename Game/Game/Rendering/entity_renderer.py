@@ -23,7 +23,7 @@ class EntityRenderer:
 
     def draw_lane_paths_all(self):
         """Affiche les 3 lanes du joueur (cyan) et de l'ennemi (orange)."""
-        overlay = pygame.Surface((self.app.width, self.app.height), pygame.SRCALPHA)
+        overlay = pygame.Surface((self.app.base_width, self.app.base_height), pygame.SRCALPHA)
         
         if self.app.lane_paths:
             for path in self.app.lane_paths:
@@ -52,7 +52,7 @@ class EntityRenderer:
         if not self.app.lane_preview_path or len(self.app.lane_preview_path) < 2:
             return
 
-        overlay = pygame.Surface((self.app.width, self.app.height), pygame.SRCALPHA)
+        overlay = pygame.Surface((self.app.base_width, self.app.base_height), pygame.SRCALPHA)
         pts = [self.base.grid_to_screen(x, y) for (x, y) in self.app.lane_preview_path]
         pygame.draw.lines(overlay, (240, 240, 240, 210), False, pts, 4)
 
@@ -199,8 +199,8 @@ class EntityRenderer:
 
         mm_w = 180
         mm_h = 90
-        mm_x = self.app.width - mm_w - 15
-        mm_y = self.app.height - mm_h - 35
+        mm_x = self.app.base_width - mm_w - 15
+        mm_y = self.app.base_height - mm_h - 35
         
         bg = pygame.Surface((mm_w + 8, mm_h + 8), pygame.SRCALPHA)
         bg.fill((35, 30, 25, 220))

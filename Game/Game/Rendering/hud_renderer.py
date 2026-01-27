@@ -368,7 +368,7 @@ class HUDRenderer:
             msg = self.app.random_event_system.get_message()
             if msg:
                 event_surf = self.app.font_big.render(msg, True, (255, 220, 80))
-                event_rect = event_surf.get_rect(center=(self.app.width // 2, 80))
+                event_rect = event_surf.get_rect(center=(self.app.base_width // 2, 80))
                 bg_rect = event_rect.inflate(30, 15)
                 bg_surf = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
                 bg_surf.fill((40, 30, 20, 220))
