@@ -15,14 +15,14 @@ except ImportError:
     PIL_AVAILABLE = False
 
 from Game.Ecs.world import World
-from Game.Services.clock import GameClock
-from Game.Services.event_bus import EventBus
-from Game.Services.GridMap import GridMap
-from Game.Services.balance_config import BalanceConfig
+from Game.Utils.clock import GameClock
+from Game.Utils.event_bus import EventBus
+from Game.Map.GridMap import GridMap
+from Game.Utils.balance_config import BalanceConfig
 from Game.Factory.entity_factory import EntityFactory
 
-from Game.Services.NavigationGrid import NavigationGrid
-from Game.Services.GridTile import GridTile
+from Game.Map.NavigationGrid import NavigationGrid
+from Game.Map.GridTile import GridTile
 
 from Game.Ecs.Components.transform import Transform
 from Game.Ecs.Components.health import Health
@@ -40,11 +40,11 @@ from Game.Ecs.Components.pyramidLevel import PyramidLevel
 from Game.Ecs.Systems.EnemySpawnerSystem import EnemySpawnerSystem
 
 from Game.Ecs.Systems.LaneRouteSystem import LaneRouteSystem
-from Game.Services.terrain_randomizer import apply_random_terrain
+from Game.Map.terrain_randomizer import apply_random_terrain
 
-from Game.App.renderers.game_renderer import GameRenderer
-from Game.App.utils.lane_pathfinder import LanePathfinder
-from Game.App.utils.grid_utils import GridUtils
+from Game.Rendering.game_renderer import GameRenderer
+from Game.Utils.lane_pathfinder import LanePathfinder
+from Game.Utils.grid_utils import GridUtils
 
 
 # UI : si tu as déjà Game/App/ui.py, il sera pris
@@ -1071,7 +1071,7 @@ class GameApp:
     def _play_sound(self, sound_name: str):
         """Joue un son via le sound_manager."""
         try:
-            from Game.App.sound_manager import sound_manager
+            from Game.Audio.sound_manager import sound_manager
             sound_manager.play(sound_name)
         except:
             pass

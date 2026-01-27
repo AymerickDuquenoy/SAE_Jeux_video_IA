@@ -1,8 +1,8 @@
 # Game/App/utils/grid_utils.py
 """Grid navigation utilities for Antique War."""
 
-from Game.Services.NavigationGrid import NavigationGrid
-from Game.Services.GridTile import GridTile
+from Game.Map.NavigationGrid import NavigationGrid
+from Game.Map.GridTile import GridTile
 
 
 class GridUtils:

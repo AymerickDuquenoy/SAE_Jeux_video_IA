@@ -26,7 +26,7 @@ class ProjectileSystem(esper.Processor):
     def _get_sound_manager(self):
         if self._sound_manager is None:
             try:
-                from Game.App.sound_manager import sound_manager
+                from Game.Audio.sound_manager import sound_manager
                 self._sound_manager = sound_manager
             except:
                 pass

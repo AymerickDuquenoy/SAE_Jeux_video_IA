@@ -118,7 +118,7 @@ class InputSystem(esper.Processor):
 
         # Son de spawn
         try:
-            from Game.App.sound_manager import sound_manager
+            from Game.Audio.sound_manager import sound_manager
             sound_manager.play("spawn")
         except:
             pass

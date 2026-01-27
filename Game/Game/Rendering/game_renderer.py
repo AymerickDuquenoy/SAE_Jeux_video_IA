@@ -4,7 +4,10 @@ Façade de rendu pour Antique War.
 Coordonne les différents modules de rendu spécialisés.
 """
 
-from Game.App.renderers import BaseRenderer, HUDRenderer, EntityRenderer, MenuRenderer
+from Game.Rendering.base_renderer import BaseRenderer
+from Game.Rendering.hud_renderer import HUDRenderer
+from Game.Rendering.entity_renderer import EntityRenderer
+from Game.Rendering.menu_renderer import MenuRenderer
 
 
 class GameRenderer:

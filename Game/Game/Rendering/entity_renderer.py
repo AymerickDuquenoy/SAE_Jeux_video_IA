@@ -129,7 +129,7 @@ class EntityRenderer:
 
     def draw_entities(self):
         """Dessine toutes les entités (pyramides, unités, projectiles)."""
-        from Game.App.sprite_renderer import sprite_renderer
+        from Game.Rendering.sprite_renderer import sprite_renderer
         
         if self.app.world:
             self.app.world._activate()

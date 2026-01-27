@@ -77,7 +77,7 @@ class HUDRenderer:
         icon = pygame.Surface((size, size), pygame.SRCALPHA)
         
         try:
-            from Game.App.sprite_renderer import sprite_renderer
+            from Game.Rendering.sprite_renderer import sprite_renderer
             sprite_renderer._load_sprites()
             
             sprite_map = {"S": "momie_1", "M": "dromadaire_1", "L": "sphinx_1"}

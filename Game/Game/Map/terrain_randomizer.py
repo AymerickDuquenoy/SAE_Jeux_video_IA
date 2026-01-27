@@ -4,7 +4,7 @@ from __future__ import annotations
 import random
 from typing import Iterable, Tuple, Dict, Optional
 
-from Game.Services.NavigationGrid import NavigationGrid
+from Game.Map.NavigationGrid import NavigationGrid
 
 Pos = Tuple[int, int]
 

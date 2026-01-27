@@ -128,7 +128,7 @@ class LanePathfinder:
         exit_point = clamp_xy(ex - 1, lane_y)
 
         # Trouver des cases walkable proches
-        from Game.App.utils.grid_utils import GridUtils
+        from Game.Utils.grid_utils import GridUtils
         grid_utils = GridUtils(self.app)
         
         s = grid_utils.find_walkable_near(start_anchor[0], start_anchor[1], max_r=12)
