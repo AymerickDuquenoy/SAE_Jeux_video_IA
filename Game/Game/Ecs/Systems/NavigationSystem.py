@@ -5,10 +5,7 @@ RÈGLES :
 1. Suit le chemin A* nœud par nœud
 2. S'arrête pour combattre une TROUPE ennemie (Target.type == "unit") à portée
 3. Continue vers la pyramide sinon
-
-IA DIFFÉRENCIÉE :
-- Momie/Dromadaire: s'arrêtent pour combattre les troupes
-- Sphinx: ne s'arrête JAMAIS pour les troupes, fonce vers la pyramide
+4. TOUTES les unités s'arrêtent pour combattre (y compris Sphinx)
 """
 import math
 import esper
@@ -60,14 +57,11 @@ class NavigationSystem(esper.Processor):
             velocity = self._ensure_velocity(ent)
             speed = self._ensure_speed(ent)
 
-            # Identifier le type d'unité
-            unit_type = self._get_unit_type(ent)
-
             # Vérifier si on doit s'arrêter pour combattre
-            # SPHINX (L) ne s'arrête JAMAIS - il fonce vers la pyramide
+            # TOUTES les unités s'arrêtent pour combattre
             should_stop = False
             
-            if unit_type != "L" and esper.has_component(ent, Target):
+            if esper.has_component(ent, Target):
                 target = esper.component_for_entity(ent, Target)
                 
                 # S'arrêter uniquement pour les TROUPES ennemies (pas pyramides)
