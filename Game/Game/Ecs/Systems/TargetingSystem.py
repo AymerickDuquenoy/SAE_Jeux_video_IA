@@ -2,10 +2,11 @@
 TargetingSystem - Assigne les cibles aux unités.
 
 RÈGLES :
-1. Les troupes ciblent les ennemis sur la MÊME LANE ou proches
-2. La pyramide n'est ciblée que si l'unité est ARRIVÉE (chemin terminé)
-3. Priorité : troupes ennemies > pyramide
-4. TOUTES les unités (Momie, Dromadaire, Sphinx) se défendent
+1. Les troupes ciblent les ennemis sur la MÊME LANE (Lane.index identique)
+2. OU quand les lanes CONVERGENT physiquement (même position Y = chemins confondus)
+3. La pyramide n'est ciblée que si l'unité est ARRIVÉE (chemin terminé)
+4. Priorité : troupes ennemies > pyramide
+5. TOUTES les unités (Momie, Dromadaire, Sphinx) se défendent
 """
 import math
 import esper
@@ -24,8 +25,12 @@ from Game.Ecs.Components.lane import Lane
 class TargetingSystem(esper.Processor):
     """
     Assigne les cibles en utilisant le composant Lane.index.
-    Toutes les unités peuvent cibler et attaquer les ennemis.
+    Combat si même lane OU si les lanes convergent (même position Y).
     """
+
+    # Tolérance pour détecter la convergence des lanes
+    # Si deux unités sont à moins de cette distance en Y, elles sont "sur le même chemin"
+    CONVERGENCE_TOLERANCE = 0.4
 
     def __init__(self, *, goals_by_team: dict, pyramid_ids: set[int], attack_range: float = 2.0):
         super().__init__()
@@ -99,20 +104,24 @@ class TargetingSystem(esper.Processor):
                         best_pyramid_dist = d
                         best_pyramid_id = cid
                 else:
-                    # Logique de ciblage par lane :
-                    # 1. Même Lane.index → cibler
-                    # 2. Lanes différentes MAIS très proches (chemins croisés) → cibler aussi
+                    # LOGIQUE DE CIBLAGE :
+                    # 1. Même Lane.index → combat
+                    # 2. Lanes différentes MAIS convergence physique (même Y) → combat
                     same_lane = False
                     
                     if my_lane >= 0 and enemy_lane >= 0:
+                        # Les deux ont une lane assignée
                         if my_lane == enemy_lane:
+                            # Même lane → combat OK
                             same_lane = True
-                        elif abs(ay - by) <= 1.0:
-                            # Chemins qui se croisent - assez proches pour combattre
+                        elif abs(ay - by) <= self.CONVERGENCE_TOLERANCE:
+                            # Lanes différentes MAIS physiquement au même endroit
+                            # = les chemins convergent (ex: près des pyramides)
                             same_lane = True
-                    else:
-                        # Fallback: comparer Y si pas de lane assignée
-                        if abs(ay - by) <= 1.0:
+                    elif my_lane < 0 or enemy_lane < 0:
+                        # Une ou les deux n'ont pas de lane assignée
+                        # Utiliser uniquement la proximité Y
+                        if abs(ay - by) <= self.CONVERGENCE_TOLERANCE:
                             same_lane = True
                     
                     if not same_lane:

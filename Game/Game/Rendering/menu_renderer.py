@@ -48,6 +48,50 @@ class MenuRenderer:
         self.app.btn_controls.draw(self.app.screen)
         self.app.btn_quit.draw(self.app.screen)
 
+    def draw_mode_select(self):
+        """Dessine l'écran de sélection du mode de jeu."""
+        if self.app.menu_background:
+            self.app.screen.blit(self.app.menu_background, (0, 0))
+        
+        title_color = (222, 205, 163)
+        title_shadow = (80, 60, 40)
+        
+        title_surf = self.app.font_title.render("Mode de Jeu", True, title_shadow)
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2 + 3, 63))
+        self.app.screen.blit(title_surf, title_rect)
+        
+        title_surf = self.app.font_title.render("Mode de Jeu", True, title_color)
+        title_rect = title_surf.get_rect(center=(self.app.base_width // 2, 60))
+        self.app.screen.blit(title_surf, title_rect)
+        
+        # Panneau
+        panel_w, panel_h = 420, 300
+        panel_x = self.app.base_width // 2 - panel_w // 2
+        panel_y = self.app.base_height // 2 - panel_h // 2 + 20
+        self.base.draw_blurred_panel(panel_x, panel_y, panel_w, panel_h, blur_radius=10)
+        
+        gold_dark = (139, 119, 77)
+        pygame.draw.rect(self.app.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=10)
+        
+        # Solo vs IA
+        self.app.btn_mode_solo.draw(self.app.screen)
+        desc1 = self.app.font_small.render("Affrontez l'IA avec difficulte variable", True, (180, 200, 150))
+        desc1_rect = desc1.get_rect(centerx=self.app.base_width // 2, top=self.app.btn_mode_solo.rect.bottom + 8)
+        self.app.screen.blit(desc1, desc1_rect)
+        
+        # 1v1 Local
+        self.app.btn_mode_1v1.draw(self.app.screen)
+        desc2 = self.app.font_small.render("2 joueurs sur le meme clavier", True, (150, 200, 255))
+        desc2_rect = desc2.get_rect(centerx=self.app.base_width // 2, top=self.app.btn_mode_1v1.rect.bottom + 8)
+        self.app.screen.blit(desc2, desc2_rect)
+        
+        # Contrôles P2
+        controls = self.app.font_small.render("J2: I/O/P (lanes) + 7/8/9 (unites)", True, (150, 180, 220))
+        controls_rect = controls.get_rect(centerx=self.app.base_width // 2, top=desc2_rect.bottom + 5)
+        self.app.screen.blit(controls, controls_rect)
+        
+        self.app.btn_back.draw(self.app.screen)
+
     def draw_difficulty_select(self):
         """Dessine l'écran de sélection de difficulté."""
         if self.app.menu_background:

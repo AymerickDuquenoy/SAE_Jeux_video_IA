@@ -401,3 +401,166 @@ class HUDRenderer:
         self.app.screen.blit(l1, (x, y))
         self.app.screen.blit(l2, (x, y + 22))
         self.app.screen.blit(l3, (x, y + 44))
+
+    def draw_hud_player2(self):
+        """Dessine le HUD du joueur 2 (à droite) en mode 1v1 - miroir du P1."""
+        if self.app.game_mode != "1v1":
+            return
+            
+        if not self.app.enemy_pyramid_eid:
+            return
+
+        if self.app.world:
+            self.app.world._activate()
+
+        try:
+            wallet = esper.component_for_entity(self.app.enemy_pyramid_eid, Wallet)
+            p2_hp = esper.component_for_entity(self.app.enemy_pyramid_eid, Health)
+        except:
+            return
+            
+        try:
+            income = esper.component_for_entity(self.app.enemy_pyramid_eid, IncomeRate)
+            income_rate = income.effective_rate if hasattr(income, 'effective_rate') else income.rate
+        except:
+            income_rate = 2.5
+
+        # Couleurs style bleu/cyan pour différencier du P1
+        blue_dark = (77, 100, 139)
+        blue_light = (101, 140, 179)
+        text_blue = (163, 200, 222)
+        text_light = (220, 240, 255)
+        bg_dark = (30, 38, 48, 220)
+        
+        # Panneau ressources + HP (miroir à droite)
+        panel_w, panel_h = 280, 90
+        panel_x = self.app.base_width - panel_w - 12
+        panel_y = 12
+        
+        panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        panel_surf.fill(bg_dark)
+        self.app.screen.blit(panel_surf, (panel_x, panel_y))
+        pygame.draw.rect(self.app.screen, blue_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=8)
+        pygame.draw.rect(self.app.screen, blue_light, (panel_x + 4, panel_y + 4, panel_w - 8, panel_h - 8), 2, border_radius=6)
+        
+        # Titre "JOUEUR 2"
+        title = self.app.font_small.render("JOUEUR 2", True, text_blue)
+        self.app.screen.blit(title, (panel_x + 12, panel_y + 6))
+        
+        # Ressources
+        self.draw_whip_icon(panel_x + 12, panel_y + 26, 22, with_background=False)
+        
+        fouet_text = f"{int(wallet.solde)}"
+        prod_text = f"+{income_rate:.1f}/s"
+        
+        fouet_surf = self.app.font.render(fouet_text, True, (80, 180, 255))
+        prod_surf = self.app.font_small.render(prod_text, True, (100, 200, 180))
+        
+        self.app.screen.blit(fouet_surf, (panel_x + 55, panel_y + 30))
+        self.app.screen.blit(prod_surf, (panel_x + 55 + fouet_surf.get_width() + 8, panel_y + 34))
+        
+        # Barre de vie P2
+        bar_y = panel_y + 58
+        bar_w = 180
+        bar_h = 14
+        bar_x = panel_x + 80
+        
+        hp_label = self.app.font_small.render("Pyramide", True, text_blue)
+        self.app.screen.blit(hp_label, (panel_x + 15, bar_y - 1))
+        
+        hp_ratio = p2_hp.hp / max(1, p2_hp.hp_max)
+        pygame.draw.rect(self.app.screen, (40, 50, 60), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+        fill_w = max(0, int((bar_w - 4) * hp_ratio))
+        if fill_w > 0:
+            pygame.draw.rect(self.app.screen, (80, 150, 220), (bar_x + 2, bar_y + 2, fill_w, bar_h - 4), border_radius=2)
+        pygame.draw.rect(self.app.screen, blue_dark, (bar_x, bar_y, bar_w, bar_h), 2, border_radius=3)
+        
+        # Boutons unités P2
+        units_y = panel_y + panel_h + 10
+        btn_size = 50
+        btn_gap = 8
+        
+        try:
+            unit_data = {
+                "S": {"cost": int(self.app.factory.compute_unit_stats("S").cost), "key": "7", "name": "Momie"},
+                "M": {"cost": int(self.app.factory.compute_unit_stats("M").cost), "key": "8", "name": "Dromadaire"},
+                "L": {"cost": int(self.app.factory.compute_unit_stats("L").cost), "key": "9", "name": "Sphinx"},
+            }
+        except:
+            unit_data = {
+                "S": {"cost": 80, "key": "7", "name": "Momie"},
+                "M": {"cost": 120, "key": "8", "name": "Dromadaire"},
+                "L": {"cost": 180, "key": "9", "name": "Sphinx"},
+            }
+        
+        # Aligner à droite
+        total_btns_w = len(unit_data) * btn_size + (len(unit_data) - 1) * btn_gap
+        btn_x = self.app.base_width - 12 - total_btns_w
+        
+        self.app.unit_btn_rects_p2 = {}
+        for unit_key, data in unit_data.items():
+            cost = data["cost"]
+            can_afford = wallet.solde >= cost
+            
+            btn_rect = pygame.Rect(btn_x, units_y, btn_size, btn_size + 18)
+            self.app.unit_btn_rects_p2[unit_key] = btn_rect
+            
+            if can_afford:
+                bg_color = (42, 50, 65, 230)
+                border_color = blue_light
+            else:
+                bg_color = (38, 42, 50, 200)
+                border_color = (60, 80, 100)
+            
+            btn_surf = pygame.Surface((btn_size, btn_size + 18), pygame.SRCALPHA)
+            btn_surf.fill(bg_color)
+            self.app.screen.blit(btn_surf, (btn_x, units_y))
+            pygame.draw.rect(self.app.screen, border_color, btn_rect, 2, border_radius=6)
+            
+            icon = self.get_unit_icon(unit_key, btn_size - 8)
+            icon_x = btn_x + 4
+            icon_y = units_y + 2
+            self.app.screen.blit(icon, (icon_x, icon_y))
+            
+            cost_color = (100, 200, 150) if can_afford else (180, 100, 100)
+            cost_text = self.app.font_small.render(f"{cost}", True, cost_color)
+            cost_rect = cost_text.get_rect(centerx=btn_x + btn_size // 2, top=units_y + btn_size - 2)
+            self.app.screen.blit(cost_text, cost_rect)
+            
+            key_text = self.app.font_small.render(data["key"], True, (150, 170, 190))
+            self.app.screen.blit(key_text, (btn_x + 3, units_y + 3))
+            
+            btn_x += btn_size + btn_gap
+        
+        # Sélecteur de lanes P2
+        lane_y = units_y + btn_size + 28
+        lane_bw = 55
+        lane_bh = 28
+        lane_gap = 8
+        
+        total_lane_w = 3 * lane_bw + 2 * lane_gap
+        lane_x_start = self.app.base_width - 12 - total_lane_w
+        
+        selected_p2 = self.app.selected_lane_idx_p2
+        lane_keys = ["I", "O", "P"]
+        
+        self.app.lane_btn_rects_p2 = []
+        for i in range(3):
+            r = pygame.Rect(lane_x_start + i * (lane_bw + lane_gap), lane_y, lane_bw, lane_bh)
+            self.app.lane_btn_rects_p2.append(r)
+            
+            active = (i == selected_p2)
+            bg = (70, 90, 110) if active else (45, 55, 65)
+            pygame.draw.rect(self.app.screen, bg, r, border_radius=6)
+            
+            border = blue_light if active else blue_dark
+            pygame.draw.rect(self.app.screen, border, r, width=3, border_radius=6)
+            
+            if active:
+                inner = r.inflate(-6, -6)
+                pygame.draw.rect(self.app.screen, blue_light, inner, width=2, border_radius=4)
+            
+            txt_col = (180, 220, 255) if active else text_blue
+            s = self.app.font_small.render(f"{lane_keys[i]}", True, txt_col)
+            tr = s.get_rect(center=r.center)
+            self.app.screen.blit(s, tr)

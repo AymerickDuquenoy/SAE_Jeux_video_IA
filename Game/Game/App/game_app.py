@@ -267,12 +267,20 @@ class GameApp:
         self.camera_y = 0.0
 
         # UI / state machine
-        self.state = "menu"  # menu/options/controls/difficulty_select/playing/pause/game_over
+        self.state = "menu"  # menu/mode_select/options/controls/difficulty_select/playing/pause/game_over
         self.state_return = "menu"
         self.game_over_text = ""
         
-        # Difficulté choisie
+        # Mode de jeu
+        self.game_mode = "solo"  # "solo" ou "1v1"
+        
+        # Difficulté choisie (mode solo)
         self.selected_difficulty = "medium"  # easy/medium/hard/extreme
+        
+        # Joueur 2 (mode 1v1)
+        self.selected_lane_idx_p2 = 1
+        self.unit_btn_rects_p2 = {}
+        self.lane_btn_rects_p2 = []
 
         # options
         self.opt_show_terrain = False
@@ -732,6 +740,13 @@ class GameApp:
         self.btn_diff_hard = UIMenuButton(pygame.Rect(cx - w // 2, diff_y + (diff_h + diff_gap) * 2, w, diff_h), "Difficile", self.font)
         self.btn_diff_extreme = UIMenuButton(pygame.Rect(cx - w // 2, diff_y + (diff_h + diff_gap) * 3, w, diff_h), "Extreme", self.font)
 
+        # Boutons de sélection de mode
+        mode_y = cy - 50
+        mode_h = 60
+        mode_gap = 25
+        self.btn_mode_solo = UIMenuButton(pygame.Rect(cx - w // 2, mode_y, w, mode_h), "Solo (vs IA)", self.font)
+        self.btn_mode_1v1 = UIMenuButton(pygame.Rect(cx - w // 2, mode_y + mode_h + mode_gap, w, mode_h), "1v1 Local", self.font)
+
         ox = cx - 320
         oy = 130
         tw = 640
@@ -1060,6 +1075,14 @@ class GameApp:
         self.player_pyramid_eid = self.factory.create_pyramid(team_id=1, grid_pos=tuple(self.player_pyr_pos))
         self.enemy_pyramid_eid = self.factory.create_pyramid(team_id=2, grid_pos=tuple(self.enemy_pyr_pos))
 
+        # En mode 1v1, donner wallet et income au joueur 2
+        if self.game_mode == "1v1":
+            start_money = float(self.balance.get("economy", {}).get("starting_money", 120.0))
+            default_income = float(self.balance.get("pyramid", {}).get("income_base", 2.5))
+            esper.add_component(self.enemy_pyramid_eid, Wallet(solde=start_money))
+            esper.add_component(self.enemy_pyramid_eid, IncomeRate(rate=default_income))
+            print(f"[INFO] Mode 1v1 - Joueur 2: {start_money} fouets, +{default_income}/s")
+
         # Systems
         from Game.Ecs.Systems.input_system import InputSystem
         from Game.Ecs.Systems.AStarPathfindingSystem import AStarPathfindingSystem
@@ -1082,6 +1105,7 @@ class GameApp:
             self.enemy_pyramid_eid,
             self.nav_grid,
             lanes_y=self.lanes_y,
+            game_mode=self.game_mode,
         )
 
         # ✅ force lane2 au démarrage même si InputSystem met lane1
@@ -1158,22 +1182,25 @@ class GameApp:
         # ✅ Plus de DifficultySystem dynamique - la difficulté est choisie au menu
         self.difficulty_system = None
 
-        # ✅ EnemySpawnerSystem avec la difficulté choisie
+        # ✅ EnemySpawnerSystem (UNIQUEMENT EN MODE SOLO)
         self.enemy_spawner_system = None
-        try:
-            self.enemy_spawner_system = EnemySpawnerSystem(
-                self.factory,
-                self.balance,
-                self.player_pyramid_eid,
-                self.enemy_pyramid_eid,
-                self.nav_grid,
-                lanes_y=self.lanes_y,
-                difficulty=self.selected_difficulty,
-            )
-            print(f"[OK] EnemySpawnerSystem created (difficulty: {self.selected_difficulty})")
-        except Exception as e:
-            print(f"[WARN] EnemySpawnerSystem failed: {e}")
-            self.enemy_spawner_system = None
+        if self.game_mode == "solo":
+            try:
+                self.enemy_spawner_system = EnemySpawnerSystem(
+                    self.factory,
+                    self.balance,
+                    self.player_pyramid_eid,
+                    self.enemy_pyramid_eid,
+                    self.nav_grid,
+                    lanes_y=self.lanes_y,
+                    difficulty=self.selected_difficulty,
+                )
+                print(f"[OK] EnemySpawnerSystem created (difficulty: {self.selected_difficulty})")
+            except Exception as e:
+                print(f"[WARN] EnemySpawnerSystem failed: {e}")
+                self.enemy_spawner_system = None
+        else:
+            print("[INFO] Mode 1v1 - EnemySpawnerSystem disabled")
 
         # ✅ RandomEventSystem pour les événements aléatoires
         try:
@@ -1261,7 +1288,7 @@ class GameApp:
     # Draw helpers
     # ----------------------------
     def _handle_hud_click(self, mx: int, my: int) -> bool:
-        """Gère les clics sur les boutons HUD (unités et upgrade)."""
+        """Gère les clics sur les boutons HUD (unités et upgrade) - Joueur 1."""
         # Vérifier clic sur boutons d'unités
         for unit_key, rect in self.unit_btn_rects.items():
             if rect and rect.collidepoint(mx, my):
@@ -1278,11 +1305,38 @@ class GameApp:
         
         return False
 
+    def _handle_hud_click_p2(self, mx: int, my: int) -> bool:
+        """Gère les clics sur les boutons HUD du joueur 2 (mode 1v1)."""
+        if self.game_mode != "1v1":
+            return False
+        
+        # Vérifier clic sur boutons d'unités P2
+        for unit_key, rect in self.unit_btn_rects_p2.items():
+            if rect and rect.collidepoint(mx, my):
+                if self.input_system and hasattr(self.input_system, '_spawn_unit_player2'):
+                    self.input_system._spawn_unit_player2(unit_key)
+                    return True
+        
+        # Vérifier clic sur sélecteur de lane P2
+        for i, rect in enumerate(self.lane_btn_rects_p2):
+            if rect and rect.collidepoint(mx, my):
+                self.selected_lane_idx_p2 = i
+                if self.input_system and hasattr(self.input_system, 'selected_lane_p2'):
+                    self.input_system.selected_lane_p2 = i
+                return True
+        
+        return False
+
     def _handle_lane_selector_click(self, mx: int, my: int) -> bool:
-        # Gérer aussi les clics HUD
+        # Gérer les clics HUD Joueur 1
         if self._handle_hud_click(mx, my):
             return True
         
+        # Gérer les clics HUD Joueur 2 (mode 1v1)
+        if self._handle_hud_click_p2(mx, my):
+            return True
+        
+        # Sélecteur de lane Joueur 1
         for i, r in enumerate(self.lane_btn_rects):
             if r.collidepoint(mx, my):
                 self._set_selected_lane_index(i)
@@ -1305,7 +1359,15 @@ class GameApp:
         self.state = self.state_return if self.state_return else "menu"
 
     def _start_game_with_difficulty(self):
-        """Démarre une partie avec la difficulté sélectionnée."""
+        """Démarre une partie solo avec la difficulté sélectionnée."""
+        self.game_mode = "solo"
+        self._teardown_match()
+        self._setup_match()
+        self.state = "playing"
+
+    def _start_game_1v1(self):
+        """Démarre une partie 1v1 local."""
+        self.game_mode = "1v1"
         self._teardown_match()
         self._setup_match()
         self.state = "playing"
@@ -1397,7 +1459,7 @@ class GameApp:
                 # MENU
                 if self.state == "menu":
                     if self.btn_play.handle_event(event):
-                        self.state = "difficulty_select"
+                        self.state = "mode_select"
 
                     if self.btn_options.handle_event(event):
                         self._open_options()
@@ -1408,10 +1470,23 @@ class GameApp:
                     if self.btn_quit.handle_event(event):
                         self.running = False
 
-                # DIFFICULTY SELECT
-                elif self.state == "difficulty_select":
+                # MODE SELECT
+                elif self.state == "mode_select":
                     if self.btn_back.handle_event(event):
                         self.state = "menu"
+                    
+                    if self.btn_mode_solo.handle_event(event):
+                        self.game_mode = "solo"
+                        self.state = "difficulty_select"
+                    
+                    if self.btn_mode_1v1.handle_event(event):
+                        self.game_mode = "1v1"
+                        self._start_game_1v1()
+
+                # DIFFICULTY SELECT (solo uniquement)
+                elif self.state == "difficulty_select":
+                    if self.btn_back.handle_event(event):
+                        self.state = "mode_select"
                     
                     if self.btn_diff_easy.handle_event(event):
                         self.selected_difficulty = "easy"
@@ -1565,11 +1640,20 @@ class GameApp:
                 # Ne pas dessiner le HUD en pause ou game_over
                 if self.state not in ("pause", "game_over"):
                     self.renderer.draw_hud_minimal()
+                    # HUD Joueur 2 en mode 1v1
+                    if self.game_mode == "1v1":
+                        # Synchroniser la lane P2 depuis InputSystem
+                        if self.input_system and hasattr(self.input_system, 'selected_lane_p2'):
+                            self.selected_lane_idx_p2 = self.input_system.selected_lane_p2
+                        self.renderer.draw_hud_player2()
                     # Minimap en bas à droite
                     self.renderer.draw_minimap()
 
             if self.state == "menu":
                 self.renderer.draw_menu()
+
+            elif self.state == "mode_select":
+                self.renderer.draw_mode_select()
 
             elif self.state == "difficulty_select":
                 self.renderer.draw_difficulty_select()

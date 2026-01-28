@@ -48,6 +48,9 @@ class GameRenderer:
     def draw_hud_minimal(self):
         self.hud.draw_hud_minimal()
 
+    def draw_hud_player2(self):
+        self.hud.draw_hud_player2()
+
     def draw_hud_advanced(self):
         self.hud.draw_hud_advanced(self.base)
 
@@ -85,6 +88,9 @@ class GameRenderer:
 
     def draw_menu(self):
         self.menu.draw_menu()
+
+    def draw_mode_select(self):
+        self.menu.draw_mode_select()
 
     def draw_difficulty_select(self):
         self.menu.draw_difficulty_select()
