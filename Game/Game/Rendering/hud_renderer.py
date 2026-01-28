@@ -364,17 +364,24 @@ class HUDRenderer:
         
         self.draw_lane_selector()
 
-        # Message d'événement
+        # Message d'événement (en bas, à gauche de la minimap)
         if self.app.random_event_system:
             msg = self.app.random_event_system.get_message()
             if msg:
-                event_surf = self.app.font_big.render(msg, True, (255, 220, 80))
-                event_rect = event_surf.get_rect(center=(self.app.base_width // 2, 80))
-                bg_rect = event_rect.inflate(30, 15)
+                # Position : en bas à gauche de la minimap
+                # Minimap est à : x = base_width - 195, y = base_height - 125
+                mm_x = self.app.base_width - 195
+                msg_y = self.app.base_height - 80  # En bas
+                
+                event_surf = self.app.font.render(msg, True, (255, 220, 80))
+                # Aligner le message à droite, juste à gauche de la minimap
+                event_rect = event_surf.get_rect(right=mm_x - 15, centery=msg_y)
+                
+                bg_rect = event_rect.inflate(20, 12)
                 bg_surf = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
                 bg_surf.fill((40, 30, 20, 220))
                 self.app.screen.blit(bg_surf, bg_rect.topleft)
-                pygame.draw.rect(self.app.screen, gold_light, bg_rect, 3, border_radius=8)
+                pygame.draw.rect(self.app.screen, gold_light, bg_rect, 2, border_radius=6)
                 self.app.screen.blit(event_surf, event_rect)
 
     def draw_hud_advanced(self, base_renderer):
