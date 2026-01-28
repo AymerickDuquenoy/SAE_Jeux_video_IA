@@ -283,6 +283,32 @@ class GameApp:
         self.lane_btn_rects_p2 = []
         self.upgrade_btn_rect_p2 = None
 
+        # Configuration des touches (keybindings)
+        self.keybindings = {
+            # Joueur 1
+            "p1_lane1": pygame.K_z,
+            "p1_lane2": pygame.K_x,
+            "p1_lane3": pygame.K_c,
+            "p1_unit_s": pygame.K_1,
+            "p1_unit_m": pygame.K_2,
+            "p1_unit_l": pygame.K_3,
+            "p1_upgrade": pygame.K_u,
+            # Joueur 2
+            "p2_lane1": pygame.K_i,
+            "p2_lane2": pygame.K_o,
+            "p2_lane3": pygame.K_p,
+            "p2_unit_s": pygame.K_7,
+            "p2_unit_m": pygame.K_8,
+            "p2_unit_l": pygame.K_9,
+            "p2_upgrade": pygame.K_m,
+        }
+        
+        # Pour l'écran de configuration des touches
+        self.keybinding_editing = None  # La touche en cours de modification
+        self.keybinding_buttons = {}  # Boutons pour chaque action
+        self.keybinding_error = ""  # Message d'erreur si touche déjà utilisée
+        self.keybinding_error_timer = 0  # Timer pour effacer le message
+
         # options
         self.opt_show_terrain = False
         self.opt_show_paths = False
@@ -346,6 +372,7 @@ class GameApp:
         self.btn_resume = None
         self.btn_restart = None
         self.btn_pause_options = None
+        self.btn_pause_controls = None
         self.btn_menu = None
 
         # toggle options
@@ -730,7 +757,8 @@ class GameApp:
         self.btn_resume = UIButton(pygame.Rect(cx - w // 2, cy - (h + gap) * 1, w, h), "Reprendre", self.font)
         self.btn_restart = UIButton(pygame.Rect(cx - w // 2, cy, w, h), "Recommencer", self.font)
         self.btn_pause_options = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 1, w, h), "Options", self.font)
-        self.btn_menu = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 2, w, h), "Menu", self.font)
+        self.btn_pause_controls = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 2, w, h), "Commandes", self.font)
+        self.btn_menu = UIButton(pygame.Rect(cx - w // 2, cy + (h + gap) * 3, w, h), "Menu", self.font)
 
         # Boutons de sélection de difficulté
         diff_y = cy - 60
@@ -1107,6 +1135,7 @@ class GameApp:
             self.nav_grid,
             lanes_y=self.lanes_y,
             game_mode=self.game_mode,
+            keybindings=self.keybindings,
         )
 
         # ✅ force lane2 au démarrage même si InputSystem met lane1
@@ -1574,10 +1603,50 @@ class GameApp:
                     if self.btn_apply_display.handle_event(event):
                         self._apply_display_settings()
 
-                # CONTROLS
+                # CONTROLS (Configuration des touches)
                 elif self.state == "controls":
                     if self.btn_back.handle_event(event):
+                        self.keybinding_editing = None
+                        self.keybinding_error = ""
                         self._return_from_submenu()
+                    
+                    # Si on est en train d'éditer une touche
+                    if self.keybinding_editing and event.type == pygame.KEYDOWN:
+                        # Ignorer Escape (annuler)
+                        if event.key == pygame.K_ESCAPE:
+                            self.keybinding_editing = None
+                            self.keybinding_error = ""
+                        else:
+                            # Vérifier si la touche est déjà utilisée
+                            key_already_used = False
+                            used_by_action = None
+                            for action, key in self.keybindings.items():
+                                if key == event.key and action != self.keybinding_editing:
+                                    key_already_used = True
+                                    used_by_action = action
+                                    break
+                            
+                            if key_already_used:
+                                # Afficher erreur
+                                key_name = pygame.key.name(event.key).upper()
+                                self.keybinding_error = f"'{key_name}' deja utilisee !"
+                            else:
+                                # Assigner la nouvelle touche
+                                self.keybindings[self.keybinding_editing] = event.key
+                                self.keybinding_editing = None
+                                self.keybinding_error = ""
+                                # Mettre à jour l'InputSystem si disponible
+                                if self.input_system:
+                                    self.input_system.keybindings = self.keybindings
+                    
+                    # Clic sur un bouton de touche
+                    elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        mx, my = event.pos
+                        for action_key, btn_rect in self.keybinding_buttons.items():
+                            if btn_rect and btn_rect.collidepoint(mx, my):
+                                self.keybinding_editing = action_key
+                                self.keybinding_error = ""
+                                break
 
                 # PLAYING
                 elif self.state == "playing":
@@ -1589,19 +1658,39 @@ class GameApp:
                         if event.key == pygame.K_ESCAPE:
                             self.state = "pause"
 
-                        # sélection lane au clavier => preview
-                        if event.key in (pygame.K_z, pygame.K_w):
+                        # Joueur 1 - sélection lane
+                        if event.key == self.keybindings["p1_lane1"]:
                             self._set_selected_lane_index(0)
                             self._flash_lane()
-                        elif event.key == pygame.K_x:
+                        elif event.key == self.keybindings["p1_lane2"]:
                             self._set_selected_lane_index(1)
                             self._flash_lane()
-                        elif event.key == pygame.K_c:
+                        elif event.key == self.keybindings["p1_lane3"]:
                             self._set_selected_lane_index(2)
                             self._flash_lane()
 
-                        if event.key == pygame.K_u and self.upgrade_system:
+                        # Joueur 1 - upgrade
+                        if event.key == self.keybindings["p1_upgrade"] and self.upgrade_system:
                             self.upgrade_system.request_upgrade()
+                        
+                        # Joueur 2 - sélection lane (mode 1v1)
+                        if self.game_mode == "1v1":
+                            if event.key == self.keybindings["p2_lane1"]:
+                                self.selected_lane_idx_p2 = 0
+                                if self.input_system:
+                                    self.input_system.selected_lane_p2 = 0
+                            elif event.key == self.keybindings["p2_lane2"]:
+                                self.selected_lane_idx_p2 = 1
+                                if self.input_system:
+                                    self.input_system.selected_lane_p2 = 1
+                            elif event.key == self.keybindings["p2_lane3"]:
+                                self.selected_lane_idx_p2 = 2
+                                if self.input_system:
+                                    self.input_system.selected_lane_p2 = 2
+                            
+                            # Joueur 2 - upgrade
+                            if event.key == self.keybindings["p2_upgrade"]:
+                                self._upgrade_pyramid_p2()
 
                 # PAUSE
                 elif self.state == "pause":
@@ -1618,6 +1707,10 @@ class GameApp:
 
                     if self.btn_pause_options.handle_event(event):
                         self._open_options()
+
+                    if self.btn_pause_controls.handle_event(event):
+                        self.state_return = "pause"
+                        self.state = "controls"
 
                     if self.btn_menu.handle_event(event):
                         self._teardown_match()

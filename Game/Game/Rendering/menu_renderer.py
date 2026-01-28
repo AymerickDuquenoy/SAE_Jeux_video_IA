@@ -245,8 +245,6 @@ class MenuRenderer:
         if self.app.menu_background:
             self.app.screen.blit(self.app.menu_background, (0, 0))
         
-        self.base.draw_blurred_panel(48, 120, self.app.base_width - 96, self.app.base_height - 190, blur_radius=10)
-        
         # Titre
         title_color = (222, 205, 163)
         title_shadow = (80, 60, 40)
@@ -261,21 +259,149 @@ class MenuRenderer:
         
         self.app.btn_back.draw(self.app.screen)
 
-        x = 70
-        y = 150
-        lines = [
-            "Deplacement camera : fleches",
-            "Choisir la lane : Z / X / C (ou W / X / C)",
-            "Lane cliquable : boutons Lane 1/2/3 en haut",
-            "Spawn unites : 1 / 2 / 3",
-            "Upgrade pyramide : U",
-            "Pause : ESC",
-            "Plein ecran : F11",
+        # Panneau principal
+        panel_w, panel_h = 680, 480
+        panel_x = self.app.base_width // 2 - panel_w // 2
+        panel_y = 95
+        
+        gold_dark = (139, 119, 77)
+        gold_light = (179, 156, 101)
+        blue_dark = (77, 100, 139)
+        blue_light = (101, 140, 179)
+        text_gold = (222, 205, 163)
+        text_blue = (163, 200, 222)
+        
+        # Fond semi-transparent simple
+        panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
+        panel_surf.fill((35, 30, 25, 230))
+        self.app.screen.blit(panel_surf, (panel_x, panel_y))
+        pygame.draw.rect(self.app.screen, gold_dark, (panel_x, panel_y, panel_w, panel_h), 3, border_radius=10)
+        
+        # Deux colonnes : Joueur 1 (gauche) et Joueur 2 (droite)
+        col_w = panel_w // 2 - 15
+        col1_x = panel_x + 10
+        col2_x = panel_x + panel_w // 2 + 5
+        
+        # Titre Joueur 1
+        p1_title = self.app.font.render("JOUEUR 1", True, gold_light)
+        p1_rect = p1_title.get_rect(centerx=col1_x + col_w // 2, top=panel_y + 12)
+        self.app.screen.blit(p1_title, p1_rect)
+        
+        # Titre Joueur 2
+        p2_title = self.app.font.render("JOUEUR 2", True, blue_light)
+        p2_rect = p2_title.get_rect(centerx=col2_x + col_w // 2, top=panel_y + 12)
+        self.app.screen.blit(p2_title, p2_rect)
+        
+        # Séparateur vertical
+        sep_x = panel_x + panel_w // 2
+        pygame.draw.line(self.app.screen, gold_dark, (sep_x, panel_y + 40), (sep_x, panel_y + panel_h - 60), 2)
+        
+        # Configuration des touches
+        actions_p1 = [
+            ("p1_lane1", "Lane 1"),
+            ("p1_lane2", "Lane 2"),
+            ("p1_lane3", "Lane 3"),
+            ("p1_unit_s", "Momie"),
+            ("p1_unit_m", "Dromadaire"),
+            ("p1_unit_l", "Sphinx"),
+            ("p1_upgrade", "Upgrade"),
         ]
-        for txt in lines:
-            surf = self.app.font.render(txt, True, (222, 205, 163))
-            self.app.screen.blit(surf, (x, y))
-            y += 28
+        
+        actions_p2 = [
+            ("p2_lane1", "Lane 1"),
+            ("p2_lane2", "Lane 2"),
+            ("p2_lane3", "Lane 3"),
+            ("p2_unit_s", "Momie"),
+            ("p2_unit_m", "Dromadaire"),
+            ("p2_unit_l", "Sphinx"),
+            ("p2_upgrade", "Upgrade"),
+        ]
+        
+        btn_w = 90
+        btn_h = 34
+        row_h = 48
+        start_y = panel_y + 50
+        
+        self.app.keybinding_buttons = {}
+        
+        # Joueur 1
+        for i, (action_key, label) in enumerate(actions_p1):
+            y = start_y + i * row_h
+            
+            # Label
+            label_surf = self.app.font_small.render(label, True, text_gold)
+            self.app.screen.blit(label_surf, (col1_x + 15, y + 7))
+            
+            # Bouton avec la touche actuelle
+            btn_x = col1_x + col_w - btn_w - 10
+            btn_rect = pygame.Rect(btn_x, y, btn_w, btn_h)
+            self.app.keybinding_buttons[action_key] = btn_rect
+            
+            # Couleur selon si on édite cette touche
+            if self.app.keybinding_editing == action_key:
+                bg_color = (90, 70, 40)
+                border_color = (255, 200, 100)
+                key_text = "..."
+            else:
+                bg_color = (55, 50, 45)
+                border_color = gold_dark
+                key_text = pygame.key.name(self.app.keybindings[action_key]).upper()
+            
+            pygame.draw.rect(self.app.screen, bg_color, btn_rect, border_radius=6)
+            pygame.draw.rect(self.app.screen, border_color, btn_rect, 2, border_radius=6)
+            
+            key_surf = self.app.font_small.render(key_text, True, (255, 230, 180))
+            key_rect = key_surf.get_rect(center=btn_rect.center)
+            self.app.screen.blit(key_surf, key_rect)
+        
+        # Joueur 2
+        for i, (action_key, label) in enumerate(actions_p2):
+            y = start_y + i * row_h
+            
+            # Label
+            label_surf = self.app.font_small.render(label, True, text_blue)
+            self.app.screen.blit(label_surf, (col2_x + 15, y + 7))
+            
+            # Bouton avec la touche actuelle
+            btn_x = col2_x + col_w - btn_w - 10
+            btn_rect = pygame.Rect(btn_x, y, btn_w, btn_h)
+            self.app.keybinding_buttons[action_key] = btn_rect
+            
+            # Couleur selon si on édite cette touche
+            if self.app.keybinding_editing == action_key:
+                bg_color = (40, 60, 90)
+                border_color = (100, 180, 255)
+                key_text = "..."
+            else:
+                bg_color = (45, 55, 65)
+                border_color = blue_dark
+                key_text = pygame.key.name(self.app.keybindings[action_key]).upper()
+            
+            pygame.draw.rect(self.app.screen, bg_color, btn_rect, border_radius=6)
+            pygame.draw.rect(self.app.screen, border_color, btn_rect, 2, border_radius=6)
+            
+            key_surf = self.app.font_small.render(key_text, True, (180, 220, 255))
+            key_rect = key_surf.get_rect(center=btn_rect.center)
+            self.app.screen.blit(key_surf, key_rect)
+        
+        # Zone d'instructions / messages en bas
+        msg_y = panel_y + panel_h - 45
+        
+        # Message d'erreur si doublon
+        if hasattr(self.app, 'keybinding_error') and self.app.keybinding_error:
+            error_surf = self.app.font_small.render(self.app.keybinding_error, True, (255, 100, 100))
+            error_rect = error_surf.get_rect(centerx=self.app.base_width // 2, top=msg_y)
+            self.app.screen.blit(error_surf, error_rect)
+        elif self.app.keybinding_editing:
+            instr_text = "Appuyez sur une touche... (ESC pour annuler)"
+            instr_surf = self.app.font_small.render(instr_text, True, (255, 220, 100))
+            instr_rect = instr_surf.get_rect(centerx=self.app.base_width // 2, top=msg_y)
+            self.app.screen.blit(instr_surf, instr_rect)
+        else:
+            instr_text = "Cliquez sur une touche pour la modifier"
+            instr_surf = self.app.font_small.render(instr_text, True, (160, 155, 145))
+            instr_rect = instr_surf.get_rect(centerx=self.app.base_width // 2, top=msg_y)
+            self.app.screen.blit(instr_surf, instr_rect)
 
     def draw_pause(self):
         """Dessine l'écran de pause."""
@@ -288,7 +414,7 @@ class MenuRenderer:
         text_gold = (222, 205, 163)
         bg_dark = (45, 38, 30)
         
-        panel_w, panel_h = 320, 340
+        panel_w, panel_h = 320, 390
         panel_x = self.app.base_width // 2 - panel_w // 2
         panel_y = self.app.base_height // 2 - panel_h // 2
         
@@ -313,15 +439,17 @@ class MenuRenderer:
         btn_w, btn_h = 200, 42
         btn_x = self.app.base_width // 2 - btn_w // 2
         btn_y = panel_y + 115
-        btn_gap = 52
+        btn_gap = 50
         
         self.app.btn_resume.rect = pygame.Rect(btn_x, btn_y, btn_w, btn_h)
         self.app.btn_pause_options.rect = pygame.Rect(btn_x, btn_y + btn_gap, btn_w, btn_h)
-        self.app.btn_restart.rect = pygame.Rect(btn_x, btn_y + btn_gap * 2, btn_w, btn_h)
-        self.app.btn_menu.rect = pygame.Rect(btn_x, btn_y + btn_gap * 3, btn_w, btn_h)
+        self.app.btn_pause_controls.rect = pygame.Rect(btn_x, btn_y + btn_gap * 2, btn_w, btn_h)
+        self.app.btn_restart.rect = pygame.Rect(btn_x, btn_y + btn_gap * 3, btn_w, btn_h)
+        self.app.btn_menu.rect = pygame.Rect(btn_x, btn_y + btn_gap * 4, btn_w, btn_h)
         
         self.app.btn_resume.draw(self.app.screen)
         self.app.btn_pause_options.draw(self.app.screen)
+        self.app.btn_pause_controls.draw(self.app.screen)
         self.app.btn_restart.draw(self.app.screen)
         self.app.btn_menu.draw(self.app.screen)
 

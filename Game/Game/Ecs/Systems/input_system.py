@@ -30,7 +30,7 @@ class InputSystem(esper.Processor):
     En mode 1v1, les deux joueurs peuvent jouer.
     """
 
-    def __init__(self, factory, balance, player_pyramid_eid: int, enemy_pyramid_eid: int, nav_grid, *, lanes_y=None, game_mode="solo"):
+    def __init__(self, factory, balance, player_pyramid_eid: int, enemy_pyramid_eid: int, nav_grid, *, lanes_y=None, game_mode="solo", keybindings=None):
         super().__init__()
         self.factory = factory
         self.balance = balance
@@ -41,6 +41,14 @@ class InputSystem(esper.Processor):
 
         # lanes calculées dans game_app.py (utile pour cohérence affichage)
         self.lanes_y = list(lanes_y) if lanes_y else None
+
+        # Configuration des touches
+        self.keybindings = keybindings if keybindings else {
+            "p1_lane1": pygame.K_z, "p1_lane2": pygame.K_x, "p1_lane3": pygame.K_c,
+            "p1_unit_s": pygame.K_1, "p1_unit_m": pygame.K_2, "p1_unit_l": pygame.K_3,
+            "p2_lane1": pygame.K_i, "p2_lane2": pygame.K_o, "p2_lane3": pygame.K_p,
+            "p2_unit_s": pygame.K_7, "p2_unit_m": pygame.K_8, "p2_unit_l": pygame.K_9,
+        }
 
         self.last_message = ""
         self.last_message_p2 = ""
@@ -237,41 +245,42 @@ class InputSystem(esper.Processor):
         keys = pygame.key.get_pressed()
 
         # ========== JOUEUR 1 ==========
-        if self._just_pressed(keys, pygame.K_z):
+        # Sélection de lane
+        if self._just_pressed(keys, self.keybindings["p1_lane1"]):
             self.selected_lane = 0
             self.last_message = "Lane 1 selected"
-        if self._just_pressed(keys, pygame.K_x):
+        if self._just_pressed(keys, self.keybindings["p1_lane2"]):
             self.selected_lane = 1
             self.last_message = "Lane 2 selected"
-        if self._just_pressed(keys, pygame.K_c):
+        if self._just_pressed(keys, self.keybindings["p1_lane3"]):
             self.selected_lane = 2
             self.last_message = "Lane 3 selected"
 
-        # 1/2/3 -> types S/M/L
-        if self._just_pressed(keys, pygame.K_1):
+        # Spawn unités
+        if self._just_pressed(keys, self.keybindings["p1_unit_s"]):
             self._spawn_unit_player("S")
-        if self._just_pressed(keys, pygame.K_2):
+        if self._just_pressed(keys, self.keybindings["p1_unit_m"]):
             self._spawn_unit_player("M")
-        if self._just_pressed(keys, pygame.K_3):
+        if self._just_pressed(keys, self.keybindings["p1_unit_l"]):
             self._spawn_unit_player("L")
 
         # ========== JOUEUR 2 (mode 1v1 uniquement) ==========
         if self.game_mode == "1v1":
-            # Sélection de lane : I / O / P
-            if self._just_pressed(keys, pygame.K_i):
+            # Sélection de lane
+            if self._just_pressed(keys, self.keybindings["p2_lane1"]):
                 self.selected_lane_p2 = 0
                 self.last_message_p2 = "P2: Lane 1"
-            if self._just_pressed(keys, pygame.K_o):
+            if self._just_pressed(keys, self.keybindings["p2_lane2"]):
                 self.selected_lane_p2 = 1
                 self.last_message_p2 = "P2: Lane 2"
-            if self._just_pressed(keys, pygame.K_p):
+            if self._just_pressed(keys, self.keybindings["p2_lane3"]):
                 self.selected_lane_p2 = 2
                 self.last_message_p2 = "P2: Lane 3"
 
-            # Spawn : 7 / 8 / 9
-            if self._just_pressed(keys, pygame.K_7):
+            # Spawn unités
+            if self._just_pressed(keys, self.keybindings["p2_unit_s"]):
                 self._spawn_unit_player2("S")
-            if self._just_pressed(keys, pygame.K_8):
+            if self._just_pressed(keys, self.keybindings["p2_unit_m"]):
                 self._spawn_unit_player2("M")
-            if self._just_pressed(keys, pygame.K_9):
+            if self._just_pressed(keys, self.keybindings["p2_unit_l"]):
                 self._spawn_unit_player2("L")
