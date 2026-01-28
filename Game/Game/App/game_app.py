@@ -314,6 +314,10 @@ class GameApp:
         self.opt_show_paths = False
         self.opt_show_lanes = False
         
+        # Options audio
+        self.opt_sound_enabled = True
+        self.opt_music_enabled = True
+        
         # Options d'affichage
         self.available_resolutions = [
             (800, 600),
@@ -384,6 +388,10 @@ class GameApp:
         self.tog_fullscreen = None
         self.sel_resolution = None
         self.btn_apply_display = None
+        
+        # Options audio
+        self.tog_sound = None
+        self.tog_music = None
 
         # lane selector HUD
         self.lane_btn_rects = []
@@ -487,6 +495,9 @@ class GameApp:
         
         # Charger les paramètres d'affichage sauvegardés
         self._load_display_settings()
+        
+        # Charger les paramètres audio sauvegardés
+        self._load_audio_settings()
         
         # Créer la fenêtre
         self._apply_display_mode()
@@ -692,6 +703,94 @@ class GameApp:
         self._apply_display_mode()
         self._save_display_settings()
 
+    def _apply_sound_settings(self):
+        """Applique les paramètres des effets sonores."""
+        try:
+            from Game.Audio.sound_manager import sound_manager
+            sound_manager.enabled = self.opt_sound_enabled
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.enabled = self.opt_sound_enabled
+            except:
+                pass
+        except:
+            pass
+        self._save_audio_settings()
+    
+    def _apply_music_settings(self):
+        """Applique les paramètres de la musique."""
+        try:
+            from Game.Audio.sound_manager import sound_manager
+            sound_manager.music_enabled = self.opt_music_enabled
+            if not self.opt_music_enabled:
+                sound_manager.stop_music()
+            elif self.state == "playing" and not sound_manager.music_playing:
+                sound_manager.play_music()
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.music_enabled = self.opt_music_enabled
+                if not self.opt_music_enabled:
+                    sound_manager.stop_music()
+                elif self.state == "playing" and not sound_manager.music_playing:
+                    sound_manager.play_music()
+            except:
+                pass
+        except:
+            pass
+        self._save_audio_settings()
+    
+    def _save_audio_settings(self):
+        """Sauvegarde les paramètres audio."""
+        try:
+            data = {}
+            if self.save_path.exists():
+                with open(self.save_path, "r") as f:
+                    data = json.load(f)
+            
+            data["audio"] = {
+                "sound_enabled": self.opt_sound_enabled,
+                "music_enabled": self.opt_music_enabled,
+            }
+            
+            with open(self.save_path, "w") as f:
+                json.dump(data, f, indent=2)
+            print(f"[SAVE] Audio settings: sound={self.opt_sound_enabled}, music={self.opt_music_enabled}")
+        except Exception as e:
+            print(f"[WARN] Could not save audio settings: {e}")
+    
+    def _load_audio_settings(self):
+        """Charge les paramètres audio sauvegardés."""
+        try:
+            if self.save_path.exists():
+                with open(self.save_path, "r") as f:
+                    data = json.load(f)
+                
+                audio = data.get("audio", {})
+                if audio:
+                    self.opt_sound_enabled = audio.get("sound_enabled", True)
+                    self.opt_music_enabled = audio.get("music_enabled", True)
+                    
+                    # Appliquer au sound_manager
+                    try:
+                        from Game.Audio.sound_manager import sound_manager
+                        sound_manager.enabled = self.opt_sound_enabled
+                        sound_manager.music_enabled = self.opt_music_enabled
+                    except ImportError:
+                        try:
+                            from Audio.sound_manager import sound_manager
+                            sound_manager.enabled = self.opt_sound_enabled
+                            sound_manager.music_enabled = self.opt_music_enabled
+                        except:
+                            pass
+                    except:
+                        pass
+                    
+                    print(f"[LOAD] Audio settings: sound={self.opt_sound_enabled}, music={self.opt_music_enabled}")
+        except Exception as e:
+            print(f"[WARN] Could not load audio settings: {e}")
+
     def _save_display_settings(self):
         """Sauvegarde les paramètres d'affichage."""
         try:
@@ -803,6 +902,10 @@ class GameApp:
         )
         self.btn_apply_display = UIMenuButton(pygame.Rect(cx - 100, oy + (th + tg) * 2 + 20, 200, 50), "Appliquer", self.font)
 
+        # Options audio
+        self.tog_sound = UIToggle(pygame.Rect(ox, oy, tw, th), "Sons", self.font, self.opt_sound_enabled)
+        self.tog_music = UIToggle(pygame.Rect(ox, oy + (th + tg), tw, th), "Musique", self.font, self.opt_music_enabled)
+
         # In-game lane buttons (repositionnés sous le nouveau HUD)
         bx = 12
         by = 175  # Sous le panneau de coûts des unités
@@ -818,6 +921,8 @@ class GameApp:
         self._sync_toggle_value(self.tog_lanes, self.opt_show_lanes)
         self._sync_toggle_value(self.tog_terrain, self.opt_show_terrain)
         self._sync_toggle_value(self.tog_paths, self.opt_show_paths)
+        self._sync_toggle_value(self.tog_sound, self.opt_sound_enabled)
+        self._sync_toggle_value(self.tog_music, self.opt_music_enabled)
 
     # ----------------------------
     # Map loading
@@ -1468,6 +1573,8 @@ class GameApp:
         self._sync_toggle_value(self.tog_lanes, self.opt_show_lanes)
         self._sync_toggle_value(self.tog_terrain, self.opt_show_terrain)
         self._sync_toggle_value(self.tog_paths, self.opt_show_paths)
+        self._sync_toggle_value(self.tog_sound, self.opt_sound_enabled)
+        self._sync_toggle_value(self.tog_music, self.opt_music_enabled)
 
     def _open_controls(self):
         self.state_return = self.state
@@ -1645,6 +1752,14 @@ class GameApp:
                     self.sel_resolution.handle_event(event)
                     if self.btn_apply_display.handle_event(event):
                         self._apply_display_settings()
+                    
+                    # Options audio
+                    if self.tog_sound.handle_event(event):
+                        self.opt_sound_enabled = self.tog_sound.value
+                        self._apply_sound_settings()
+                    if self.tog_music.handle_event(event):
+                        self.opt_music_enabled = self.tog_music.value
+                        self._apply_music_settings()
 
                 # CONTROLS (Configuration des touches)
                 elif self.state == "controls":

@@ -238,6 +238,36 @@ class MenuRenderer:
         self.app.tog_paths.rect = pygame.Rect(toggle_x2, toggle3_y2, toggle_w2, toggle_h2)
         self.app.tog_paths.draw(self.app.screen)
         
+        # Panneau central bas : Audio
+        panel3_w = 280
+        panel3_h = 140
+        panel3_x = self.app.base_width // 2 - panel3_w // 2
+        panel3_y = 395
+        self.base.draw_blurred_panel(panel3_x, panel3_y, panel3_w, panel3_h, blur_radius=10)
+        pygame.draw.rect(self.app.screen, gold_dark, (panel3_x, panel3_y, panel3_w, panel3_h), 3, border_radius=10)
+        
+        # Titre panneau Audio
+        cat3_surf = self.app.font.render("AUDIO", True, gold_light)
+        cat3_rect = cat3_surf.get_rect(centerx=panel3_x + panel3_w // 2, top=panel3_y + 12)
+        self.app.screen.blit(cat3_surf, cat3_rect)
+        
+        # Séparateur
+        pygame.draw.line(self.app.screen, gold_dark, (panel3_x + 15, panel3_y + 40), (panel3_x + panel3_w - 15, panel3_y + 40), 2)
+        
+        # Toggles audio
+        toggle_x3 = panel3_x + 15
+        toggle_w3 = panel3_w - 30
+        toggle_h3 = 38
+        toggle_gap3 = 45
+        
+        toggle1_y3 = panel3_y + 52
+        self.app.tog_sound.rect = pygame.Rect(toggle_x3, toggle1_y3, toggle_w3, toggle_h3)
+        self.app.tog_sound.draw(self.app.screen)
+        
+        toggle2_y3 = toggle1_y3 + toggle_gap3
+        self.app.tog_music.rect = pygame.Rect(toggle_x3, toggle2_y3, toggle_w3, toggle_h3)
+        self.app.tog_music.draw(self.app.screen)
+        
         self.app.btn_back.draw(self.app.screen)
 
     def draw_controls(self):
