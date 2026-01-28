@@ -19,10 +19,12 @@ class TerrainEffectSystem:
     Ici on choisit : "Speed.mult_terrain uniquement".
     """
 
+    # Initialise le système d'effets de terrain avec la grille de navigation
     def __init__(self, nav_grid):
         self.nav_grid = nav_grid
 
     # Compatible si ton World appelle system.process(dt)
+    # Met à jour le multiplicateur de vitesse selon le terrain sous chaque unité
     def process(self, dt: float):
         if not self.nav_grid:
             return
@@ -46,5 +48,6 @@ class TerrainEffectSystem:
                 esper.remove_component(ent, TerrainEffect)
 
     # Compatible si ton World appelle system(world, dt)
+    # Permet d'appeler le système avec différentes signatures (compatibilité)
     def __call__(self, world, dt: float):
         self.process(dt)

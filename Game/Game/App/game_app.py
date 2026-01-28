@@ -52,6 +52,7 @@ try:
     from Game.App.ui import UIButton, UIToggle, UIMenuButton, UISelector
 except Exception:
     class UIButton:
+        # Initialise l'application de jeu avec la fenêtre, les paramètres et tous les composants nécessaires
         def __init__(self, rect, text, font):
             self.rect = rect
             self.text = text
@@ -71,6 +72,7 @@ except Exception:
             screen.blit(s, r)
 
     class UIToggle:
+        # Initialise l'application de jeu avec la fenêtre, les paramètres et tous les composants nécessaires
         def __init__(self, rect, label, font, value=False):
             self.rect = rect
             self.label = label
@@ -94,6 +96,7 @@ except Exception:
             screen.blit(s, (self.rect.x + 16, self.rect.y + 14))
 
 
+# Génère un fichier TMX avec des tuiles de sable aléatoires et des zones de sables mouvants
 def _write_generated_tmx(
     output_path: Path,
     *,
@@ -182,6 +185,7 @@ def _write_generated_tmx(
 
 
 class GameApp:
+    # Initialise l'application de jeu avec la fenêtre, les paramètres et tous les composants nécessaires
     def __init__(self, width: int = 800, height: int = 600, title: str = "Antique War"):
         # Résolution de base (interne) - le jeu est TOUJOURS rendu à cette taille
         self.base_width = 960
@@ -252,7 +256,7 @@ class GameApp:
         self.ai_behavior_system = None
 
 
-        # ✅ AJOUT : enemy systems (sinon aucun spawn)
+        #  AJOUT : enemy systems (sinon aucun spawn)
         self.difficulty_system = None
         self.enemy_spawner_system = None
 
@@ -334,7 +338,7 @@ class GameApp:
         # Mode d'affichage simplifié : juste fenêtré ou plein écran
         self.is_fullscreen = False
 
-        # ✅ lane sélectionnée (0..2) -> lane2 par défaut
+        #  lane sélectionnée (0..2) -> lane2 par défaut
         self.selected_lane_idx = 1
 
         # stats (replay)
@@ -363,7 +367,7 @@ class GameApp:
         self.lane_flash_duration = 0.85
         self.lane_preview_path = []
 
-        # ✅ AJOUT : tracker unités déjà vues (pour snap spawn lane)
+        #  AJOUT : tracker unités déjà vues (pour snap spawn lane)
         self._known_units = set()
 
         # buttons
@@ -406,6 +410,7 @@ class GameApp:
     # ----------------------------
     # Selected lane helpers
     # ----------------------------
+    # Retourne l'index de la lane actuellement sélectionnée par le joueur
     def _get_selected_lane_index(self) -> int:
         idx = int(self.selected_lane_idx)
 
@@ -428,6 +433,7 @@ class GameApp:
         self.selected_lane_idx = idx
         return idx
 
+    # Change la lane sélectionnée et met à jour l'InputSystem
     def _set_selected_lane_index(self, idx: int):
         old_idx = getattr(self, 'selected_lane_idx', 1)
         idx = max(0, min(2, int(idx)))
@@ -448,6 +454,7 @@ class GameApp:
     # ----------------------------
     # Save
     # ----------------------------
+    # Charge les données sauvegardées (meilleur temps) depuis le fichier save.json
     def _load_save(self):
         self.best_time = 0.0
         self.best_kills = 0
@@ -460,6 +467,7 @@ class GameApp:
             self.best_time = 0.0
             self.best_kills = 0
 
+    # Sauvegarde les données (meilleur temps) dans le fichier save.json
     def _save_save(self):
         try:
             self.save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -471,6 +479,7 @@ class GameApp:
     # ----------------------------
     # Boot
     # ----------------------------
+    # Démarre Pygame, crée la fenêtre, charge les ressources (sons, musiques, polices)
     def boot(self):
         pygame.init()
         pygame.display.set_caption(self.title)
@@ -550,17 +559,19 @@ class GameApp:
         self.opt_show_paths = False
         self.opt_show_lanes = False
 
-        # ✅ lane par défaut = 2 au boot
+        #  lane par défaut = 2 au boot
         self.selected_lane_idx = 1
 
         self._build_ui()
 
+    # Ferme proprement Pygame et libère les ressources
     def shutdown(self):
         pygame.quit()
 
     # ----------------------------
     # Scaling / Display
     # ----------------------------
+    # Calcule le facteur de mise à l'échelle pour adapter le rendu à la taille de l'écran
     def _update_scaling(self):
         """Calcule les facteurs de scale pour remplir tout l'écran."""
         # Vérifier la vraie taille de l'écran
@@ -582,6 +593,7 @@ class GameApp:
         
         print(f"[SCALE] {self.width}x{self.height} -> scale ({self.scale_x:.2f}, {self.scale_y:.2f})")
 
+    # Convertit les coordonnées de l'écran en coordonnées du jeu (inverse la mise à l'échelle)
     def _screen_to_game_coords(self, screen_x: int, screen_y: int) -> tuple[int, int]:
         """Convertit les coordonnées écran en coordonnées de jeu (surface interne)."""
         if self.scale_x <= 0 or self.scale_y <= 0:
@@ -597,6 +609,7 @@ class GameApp:
         
         return game_x, game_y
 
+    # Affiche la surface de jeu mise à l'échelle sur l'écran réel
     def _render_to_screen(self):
         """Scale et affiche la game_surface sur l'écran (remplit tout)."""
         # Scaler la surface de jeu pour remplir tout l'écran
@@ -609,6 +622,7 @@ class GameApp:
     # ----------------------------
     # UI
     # ----------------------------
+    # Synchronise la valeur d'un bouton toggle avec une valeur booléenne
     def _sync_toggle_value(self, toggle, value: bool):
         """Sécurise le OFF/ON même si ton ui.py a une logique différente."""
         try:
@@ -622,6 +636,7 @@ class GameApp:
                 except Exception:
                     pass
 
+    # Applique le mode d'affichage (plein écran, fenêtré, etc.)
     def _apply_display_mode(self):
         """Applique le mode d'affichage actuel."""
         if self.is_fullscreen:
@@ -677,6 +692,7 @@ class GameApp:
         self._update_scaling()
         print(f"[OK] Display: {self.width}x{self.height}, fullscreen={self.is_fullscreen}")
 
+    # Bascule entre le mode plein écran et le mode fenêtré
     def _toggle_fullscreen(self):
         """Bascule entre fenêtré et plein écran (F11)."""
         self.is_fullscreen = not self.is_fullscreen
@@ -688,6 +704,7 @@ class GameApp:
         
         self._save_display_settings()
 
+    # Applique tous les paramètres d'affichage (mode, résolution, vsync)
     def _apply_display_settings(self):
         """Applique les paramètres d'affichage depuis le menu Options."""
         # Récupérer les nouvelles valeurs
@@ -703,6 +720,7 @@ class GameApp:
         self._apply_display_mode()
         self._save_display_settings()
 
+    # Applique le volume des effets sonores
     def _apply_sound_settings(self):
         """Applique les paramètres des effets sonores."""
         try:
@@ -718,6 +736,7 @@ class GameApp:
             pass
         self._save_audio_settings()
     
+    # Applique le volume de la musique et gère la lecture/pause
     def _apply_music_settings(self):
         """Applique les paramètres de la musique."""
         try:
@@ -741,6 +760,7 @@ class GameApp:
             pass
         self._save_audio_settings()
     
+    # Sauvegarde les paramètres audio dans settings.json
     def _save_audio_settings(self):
         """Sauvegarde les paramètres audio."""
         try:
@@ -760,6 +780,7 @@ class GameApp:
         except Exception as e:
             print(f"[WARN] Could not save audio settings: {e}")
     
+    # Charge les paramètres audio depuis settings.json
     def _load_audio_settings(self):
         """Charge les paramètres audio sauvegardés."""
         try:
@@ -791,6 +812,7 @@ class GameApp:
         except Exception as e:
             print(f"[WARN] Could not load audio settings: {e}")
 
+    # Sauvegarde les paramètres d'affichage dans settings.json
     def _save_display_settings(self):
         """Sauvegarde les paramètres d'affichage."""
         try:
@@ -818,6 +840,7 @@ class GameApp:
         except Exception as e:
             print(f"[WARN] Could not save display settings: {e}")
 
+    # Charge les paramètres d'affichage depuis settings.json
     def _load_display_settings(self):
         """Charge les paramètres d'affichage sauvegardés."""
         try:
@@ -843,6 +866,7 @@ class GameApp:
         except Exception as e:
             print(f"[WARN] Could not load display settings: {e}")
 
+    # Crée tous les boutons et éléments d'interface utilisateur
     def _build_ui(self):
         cx = self.base_width // 2
         cy = self.base_height // 2
@@ -927,6 +951,7 @@ class GameApp:
     # ----------------------------
     # Map loading
     # ----------------------------
+    # Charge une carte TMX pour l'affichage visuel
     def _load_map_for_visual(self, map_path: Path):
         self.last_map_name = map_path.name
         self.game_map = GridMap(str(map_path))
@@ -934,13 +959,16 @@ class GameApp:
     # ----------------------------
     # Helpers
     # ----------------------------
+    # Limite une valeur entre un minimum et un maximum
     def _clamp(self, v: int, lo: int, hi: int) -> int:
         return lo if v < lo else hi if v > hi else v
 
 
+    # Retourne l'index de la lane sélectionnée (alias de _get_selected_lane_index)
     def _selected_lane_index(self) -> int:
         return self._get_selected_lane_index()
 
+    # Place les nouvelles unités alliées au début de leur lane assignée
     def _snap_new_friendly_units_to_lane_start(self):
         if not self.world or not self.lane_paths or not self.nav_grid:
             return
@@ -1045,6 +1073,7 @@ class GameApp:
             self._known_units.add(ent)
 
 
+    # Déclenche un effet visuel de flash sur la lane sélectionnée
     def _flash_lane(self):
         self.lane_flash_timer = float(self.lane_flash_duration)
         idx = self._get_selected_lane_index()
@@ -1056,6 +1085,7 @@ class GameApp:
     # ----------------------------
     # Match lifecycle
     # ----------------------------
+    # Nettoie et détruit tous les systèmes et entités d'une partie
     def _teardown_match(self):
         self.world = None
         self.factory = None
@@ -1077,7 +1107,7 @@ class GameApp:
         self.difficulty_system = None
 
 
-        # ✅ reset enemy systems
+        #  reset enemy systems
         self.difficulty_system = None
         self.enemy_spawner_system = None
 
@@ -1095,10 +1125,10 @@ class GameApp:
 
         self._known_units = set()
 
-        # ✅ reset lane -> lane2
+        #  reset lane -> lane2
         self.selected_lane_idx = 1
         
-        # ✅ Arrêter la musique
+        #  Arrêter la musique
         try:
             from Game.Audio.sound_manager import sound_manager
             sound_manager.stop_music()
@@ -1111,10 +1141,11 @@ class GameApp:
         except:
             pass
 
+    # Initialise une nouvelle partie avec la carte, les entités et les systèmes de jeu
     def _setup_match(self):
         self.match_index += 1
 
-        # ✅ lane par défaut = lane2
+        #  lane par défaut = lane2
         self.selected_lane_idx = 1
 
         # 0) seed du match (sert aussi au visuel)
@@ -1212,7 +1243,7 @@ class GameApp:
             corridor_half_height=1,
         )
 
-        # ✅ connectors lanes haut/milieu/bas + cases d’attaque walkable
+        #  connectors lanes haut/milieu/bas + cases d’attaque walkable
         self.grid_utils.carve_pyramid_connectors()
 
         # 6) pré-calcul des 3 lanes (joueur ET ennemi)
@@ -1261,7 +1292,7 @@ class GameApp:
             keybindings=self.keybindings,
         )
 
-        # ✅ force lane2 au démarrage même si InputSystem met lane1
+        #  force lane2 au démarrage même si InputSystem met lane1
         self._set_selected_lane_index(1)
 
         default_income = float(self.balance.get("pyramid", {}).get("income_base", 2.0))
@@ -1280,7 +1311,7 @@ class GameApp:
         self.astar_system = AStarPathfindingSystem(self.nav_grid)
         self.terrain_system = TerrainEffectSystem(self.nav_grid)
         
-        # ✅ Paramètres de combat centralisés depuis balance.json
+        #  Paramètres de combat centralisés depuis balance.json
         combat_cfg = self.balance.get("combat", {})
         attack_range = float(combat_cfg.get("attack_range", 2.0))
         align_tolerance = float(combat_cfg.get("align_tolerance", 0.5))
@@ -1332,10 +1363,10 @@ class GameApp:
         # Passer les chemins pré-calculés
         self.lane_route_system.set_lane_paths(self.lane_paths)
 
-        # ✅ Plus de DifficultySystem dynamique - la difficulté est choisie au menu
+        #  Plus de DifficultySystem dynamique - la difficulté est choisie au menu
         self.difficulty_system = None
 
-        # ✅ EnemySpawnerSystem (UNIQUEMENT EN MODE SOLO)
+        #  EnemySpawnerSystem (UNIQUEMENT EN MODE SOLO)
         self.enemy_spawner_system = None
         if self.game_mode == "solo":
             try:
@@ -1355,7 +1386,7 @@ class GameApp:
         else:
             print("[INFO] Mode 1v1 - EnemySpawnerSystem disabled")
 
-        # ✅ RandomEventSystem pour les événements aléatoires
+        #  RandomEventSystem pour les événements aléatoires
         try:
             self.random_event_system = RandomEventSystem(
                 self.nav_grid,
@@ -1368,7 +1399,7 @@ class GameApp:
             print(f"[WARN] RandomEventSystem failed: {e}")
             self.random_event_system = None
 
-        # ✅ PyramidDefenseSystem - les pyramides tirent sur les ennemis
+        #  PyramidDefenseSystem - les pyramides tirent sur les ennemis
         try:
             pyramid_ids = {self.player_pyramid_eid, self.enemy_pyramid_eid}
             self.pyramid_defense_system = PyramidDefenseSystem(
@@ -1382,7 +1413,7 @@ class GameApp:
             print(f"[WARN] PyramidDefenseSystem failed: {e}")
             self.pyramid_defense_system = None
 
-        # ✅ AIBehaviorSystem - comportements IA différenciés
+        #  AIBehaviorSystem - comportements IA différenciés
         try:
             self.ai_behavior_system = AIBehaviorSystem(
                 pyramid_ids={self.player_pyramid_eid, self.enemy_pyramid_eid}
@@ -1396,13 +1427,13 @@ class GameApp:
         self.world.add_system(self.economy_system, priority=15)
         self.world.add_system(self.upgrade_system, priority=18)
 
-        # ✅ enemy systems assez tôt
+        #  enemy systems assez tôt
         if self.difficulty_system is not None:
             self.world.add_system(self.difficulty_system, priority=19)
         if self.enemy_spawner_system is not None:
             self.world.add_system(self.enemy_spawner_system, priority=21)
 
-        # ✅ RandomEventSystem
+        #  RandomEventSystem
         if self.random_event_system is not None:
             self.world.add_system(self.random_event_system, priority=22)
 
@@ -1414,11 +1445,11 @@ class GameApp:
         self.world.add_system(self.targeting_system, priority=40)
         self.world.add_system(self.combat_system, priority=50)
         
-        # ✅ PyramidDefenseSystem après combat
+        #  PyramidDefenseSystem après combat
         if self.pyramid_defense_system is not None:
             self.world.add_system(self.pyramid_defense_system, priority=55)
         
-        # ✅ AIBehaviorSystem - comportements IA différenciés
+        #  AIBehaviorSystem - comportements IA différenciés
         if self.ai_behavior_system is not None:
             self.world.add_system(self.ai_behavior_system, priority=35)  # Entre targeting et combat
         
@@ -1434,10 +1465,10 @@ class GameApp:
 
         self._known_units = set()
 
-        # ✅ preview au spawn (lane2)
+        #  preview au spawn (lane2)
         self._flash_lane()
         
-        # ✅ Démarrer la musique de fond
+        #  Démarrer la musique de fond
         try:
             from Game.Audio.sound_manager import sound_manager
             sound_manager.play_music()
@@ -1453,6 +1484,7 @@ class GameApp:
     # ----------------------------
     # Draw helpers
     # ----------------------------
+    # Gère les clics de souris sur l'interface HUD du joueur 1
     def _handle_hud_click(self, mx: int, my: int) -> bool:
         """Gère les clics sur les boutons HUD (unités et upgrade) - Joueur 1."""
         # Vérifier clic sur boutons d'unités
@@ -1471,6 +1503,7 @@ class GameApp:
         
         return False
 
+    # Gère les clics de souris sur l'interface HUD du joueur 2
     def _handle_hud_click_p2(self, mx: int, my: int) -> bool:
         """Gère les clics sur les boutons HUD du joueur 2 (mode 1v1)."""
         if self.game_mode != "1v1":
@@ -1498,6 +1531,7 @@ class GameApp:
         
         return False
 
+    # Améliore la pyramide du joueur 2 si les conditions sont remplies
     def _upgrade_pyramid_p2(self):
         """Upgrade la pyramide du joueur 2."""
         if self.game_mode != "1v1":
@@ -1550,6 +1584,7 @@ class GameApp:
         except:
             pass
 
+    # Gère les clics sur le sélecteur de lane en bas de l'écran
     def _handle_lane_selector_click(self, mx: int, my: int) -> bool:
         # Gérer les clics HUD Joueur 1
         if self._handle_hud_click(mx, my):
@@ -1567,6 +1602,7 @@ class GameApp:
                 return True
         return False
 
+    # Ouvre le menu des options et sauvegarde l'état précédent
     def _open_options(self):
         self.state_return = self.state
         self.state = "options"
@@ -1576,13 +1612,16 @@ class GameApp:
         self._sync_toggle_value(self.tog_sound, self.opt_sound_enabled)
         self._sync_toggle_value(self.tog_music, self.opt_music_enabled)
 
+    # Ouvre le menu des contrôles
     def _open_controls(self):
         self.state_return = self.state
         self.state = "controls"
 
+    # Retourne à l'écran précédent depuis un sous-menu
     def _return_from_submenu(self):
         self.state = self.state_return if self.state_return else "menu"
 
+    # Lance une nouvelle partie avec la difficulté sélectionnée
     def _start_game_with_difficulty(self):
         """Démarre une partie solo avec la difficulté sélectionnée."""
         self.game_mode = "solo"
@@ -1590,6 +1629,7 @@ class GameApp:
         self._setup_match()
         self.state = "playing"
 
+    # Lance une nouvelle partie en mode 1 contre 1
     def _start_game_1v1(self):
         """Démarre une partie 1v1 local."""
         self.game_mode = "1v1"
@@ -1600,6 +1640,7 @@ class GameApp:
     # ----------------------------
     # Stats
     # ----------------------------
+    # Met à jour le compteur de kills des joueurs
     def _update_kills_tracker(self):
         if self.world:
             self.world._activate()
@@ -1618,6 +1659,7 @@ class GameApp:
 
         self._prev_enemy_ids = current
 
+    # Joue un effet sonore si les sons sont activés
     def _play_sound(self, sound_name: str):
         """Joue un son via le sound_manager."""
         try:
@@ -1632,6 +1674,7 @@ class GameApp:
         except:
             pass
 
+    # Vérifie et met à jour le meilleur temps si la partie est gagnée
     def _check_record(self):
         updated = False
         if self.match_time > self.best_time:
@@ -1646,6 +1689,7 @@ class GameApp:
     # ----------------------------
     # Main loop
     # ----------------------------
+    # Boucle principale du jeu qui gère les événements, les mises à jour et le rendu
     def run(self):
         self.boot()
         self.running = True
@@ -1980,6 +2024,7 @@ class GameApp:
         self.shutdown()
 
 
+# Fonction principale qui crée et lance l'application de jeu
 def main():
     GameApp().run()
 

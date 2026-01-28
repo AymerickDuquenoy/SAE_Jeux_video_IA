@@ -32,18 +32,21 @@ class TargetingSystem(esper.Processor):
     # Si deux unités sont à moins de cette distance en Y, elles sont "sur le même chemin"
     CONVERGENCE_TOLERANCE = 0.4
 
+    # Initialise le système de ciblage avec les objectifs et pyramides
     def __init__(self, *, goals_by_team: dict, pyramid_ids: set[int], attack_range: float = 2.0):
         super().__init__()
         self.goals_by_team = goals_by_team
         self.pyramid_ids = set(int(x) for x in pyramid_ids)
         self.attack_range = float(attack_range)
 
+    # Retourne l'index de lane d'une entité (-1 si pas de lane)
     def _get_lane_index(self, ent: int) -> int:
         """Retourne l'index de lane (-1 si pas de lane)."""
         if esper.has_component(ent, Lane):
             return esper.component_for_entity(ent, Lane).index
         return -1
 
+    # Vérifie si une unité est arrivée à destination (fin de chemin)
     def _is_arrived(self, ent: int) -> bool:
         """Vérifie si l'unité est arrivée à destination."""
         if not esper.has_component(ent, Path):
@@ -62,6 +65,7 @@ class TargetingSystem(esper.Processor):
         
         return False
 
+    # Assigne les cibles aux unités selon leur lane et la proximité
     def process(self, dt: float):
         # Collecter toutes les cibles potentielles avec leur lane
         candidates = []
@@ -141,6 +145,7 @@ class TargetingSystem(esper.Processor):
                 if esper.has_component(eid, Target):
                     esper.remove_component(eid, Target)
 
+    # Assigne ou met à jour la cible d'une unité
     def _set_target(self, eid: int, target_id: int, target_type: str):
         """Assigne ou met à jour la cible d'une unité."""
         if esper.has_component(eid, Target):

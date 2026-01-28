@@ -18,12 +18,14 @@ class ProjectileSystem(esper.Processor):
     - Supprime le projectile si la cible meurt ou n'existe plus
     """
 
+    # Initialise le système de projectiles avec pyramides et récompenses
     def __init__(self, pyramid_by_team: dict[int, int] | None = None, reward_divisor: float = 2.0):
         super().__init__()
         self.pyramid_by_team = pyramid_by_team or {}
         self.reward_divisor = float(reward_divisor) if float(reward_divisor) > 0 else 2.0
         self._sound_manager = None
 
+    # Récupère l'instance du gestionnaire de sons (lazy loading)
     def _get_sound_manager(self):
         if self._sound_manager is None:
             try:
@@ -37,6 +39,7 @@ class ProjectileSystem(esper.Processor):
                     pass
         return self._sound_manager
 
+    # Déplace les projectiles homing vers leur cible et applique les dégâts
     def process(self, dt: float):
         if dt <= 0:
             return

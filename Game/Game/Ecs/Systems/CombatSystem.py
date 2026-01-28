@@ -21,6 +21,7 @@ from Game.Ecs.Components.lifetime import Lifetime
 class CombatSystem(esper.Processor):
     """Combat avec projectiles homing - tire dès qu'une cible est à portée."""
 
+    # Initialise le système de combat avec les paramètres d'attaque et projectiles
     def __init__(self, *, attack_range: float = 2.0, hit_cooldown: float = 0.6, projectile_speed: float = 12.0, align_tolerance: float = 0.5):
         super().__init__()
         self.attack_range = float(attack_range)
@@ -30,6 +31,7 @@ class CombatSystem(esper.Processor):
         self._sound_manager = None
         self._shoot_sound_cooldown = 0.0
 
+    # Récupère l'instance du gestionnaire de sons (lazy loading)
     def _get_sound_manager(self):
         if self._sound_manager is None:
             try:
@@ -44,6 +46,7 @@ class CombatSystem(esper.Processor):
                     pass
         return self._sound_manager
 
+    # Gère les attaques des unités : cooldowns, ciblage et tir de projectiles homing
     def process(self, dt: float):
         if dt <= 0:
             return

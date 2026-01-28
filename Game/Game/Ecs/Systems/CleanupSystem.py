@@ -10,10 +10,12 @@ class CleanupSystem(esper.Processor):
     - Gère aussi Lifetime.ttl si utilisé
     """
 
+    # Initialise le système de nettoyage avec une liste d'entités protégées
     def __init__(self, *, protected_entities: set[int] | None = None):
         super().__init__()
         self.protected = set(protected_entities or set())
 
+    # Supprime les entités mortes ou expirées (sauf celles protégées)
     def process(self, dt: float):
         to_delete = []
 

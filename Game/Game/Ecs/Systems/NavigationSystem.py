@@ -28,6 +28,7 @@ class NavigationSystem(esper.Processor):
     S'arrête quand une cible ennemie est à portée.
     """
 
+    # Initialise le système de navigation avec rayon d'arrivée et portée d'attaque
     def __init__(self, *, arrive_radius: float = 0.15, min_speed: float = 0.0, attack_range: float = 2.0, align_tolerance: float = 0.7):
         super().__init__()
         self.arrive_radius = float(arrive_radius)
@@ -35,6 +36,7 @@ class NavigationSystem(esper.Processor):
         self.attack_range = float(attack_range)
         self.align_tolerance = float(align_tolerance)  # Non utilisé mais gardé pour compatibilité
 
+    # Détermine le type d'unité (S/M/L) basé sur sa puissance
     def _get_unit_type(self, ent: int) -> str:
         """Détermine le type d'unité (S/M/L) basé sur les stats."""
         if not esper.has_component(ent, UnitStats):
@@ -48,6 +50,7 @@ class NavigationSystem(esper.Processor):
         else:
             return "L"  # Sphinx
 
+    # Déplace les unités le long de leur chemin, s'arrête pour combattre si ennemi à portée
     def process(self, dt: float):
         if dt <= 0:
             return
@@ -151,6 +154,7 @@ class NavigationSystem(esper.Processor):
             new_y = ty + velocity.vy * dt
             transform.pos = (new_x, new_y)
 
+    # S'assure qu'une entité a un composant Transform
     def _ensure_transform(self, ent: int, gpos: GridPosition) -> Transform:
         if esper.has_component(ent, Transform):
             return esper.component_for_entity(ent, Transform)
@@ -158,6 +162,7 @@ class NavigationSystem(esper.Processor):
         esper.add_component(ent, t)
         return t
 
+    # S'assure qu'une entité a un composant Velocity
     def _ensure_velocity(self, ent: int) -> Velocity:
         if esper.has_component(ent, Velocity):
             return esper.component_for_entity(ent, Velocity)
@@ -165,6 +170,7 @@ class NavigationSystem(esper.Processor):
         esper.add_component(ent, v)
         return v
 
+    # S'assure qu'une entité a un composant Speed
     def _ensure_speed(self, ent: int) -> Speed:
         if esper.has_component(ent, Speed):
             return esper.component_for_entity(ent, Speed)

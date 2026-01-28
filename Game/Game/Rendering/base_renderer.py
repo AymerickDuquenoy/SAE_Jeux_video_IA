@@ -13,9 +13,11 @@ except ImportError:
 class BaseRenderer:
     """Utilitaires de rendu de base."""
 
+    # Initialise le renderer de base avec référence à l'application
     def __init__(self, app):
         self.app = app
 
+    # Convertit des coordonnées grille en coordonnées écran
     def grid_to_screen(self, gx: float, gy: float):
         """Convertit coordonnées grille -> écran."""
         tw = int(self.app.game_map.tilewidth)
@@ -24,12 +26,14 @@ class BaseRenderer:
         py = (gy + 0.5) * th
         return int(px - self.app.camera_x), int(py - self.app.camera_y)
 
+    # Dessine un panneau semi-transparent
     def draw_panel(self, x: int, y: int, w: int, h: int, alpha: int = 120):
         """Dessine un panneau semi-transparent."""
         s = pygame.Surface((w, h), pygame.SRCALPHA)
         s.fill((0, 0, 0, alpha))
         self.app.screen.blit(s, (x, y))
 
+    # Dessine un panneau avec effet de flou sur le fond (si PIL disponible)
     def draw_blurred_panel(self, x: int, y: int, w: int, h: int, blur_radius: int = 8):
         """Dessine un panneau avec effet de flou sur le fond."""
         if PIL_AVAILABLE:
@@ -53,6 +57,7 @@ class BaseRenderer:
         else:
             self.draw_panel(x, y, w, h, alpha=180)
 
+    # Dessine un overlay centré avec titre et sous-titre
     def draw_center_overlay(self, title: str, subtitle: str = ""):
         """Dessine un overlay centré avec titre et sous-titre."""
         overlay = pygame.Surface((self.app.base_width, self.app.base_height), pygame.SRCALPHA)

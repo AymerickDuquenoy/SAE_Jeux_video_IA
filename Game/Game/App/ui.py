@@ -9,6 +9,7 @@ class UIButton:
         self.font = font
         self.hover = False
 
+    # Retourne True si le bouton a été cliqué
     def handle_event(self, event) -> bool:
         if event.type == pygame.MOUSEMOTION:
             self.hover = self.rect.collidepoint(event.pos)
@@ -17,6 +18,7 @@ class UIButton:
                 return True
         return False
 
+    # Dessine le bouton sur l'écran
     def draw(self, screen: pygame.Surface):
         bg = (70, 70, 78) if self.hover else (50, 50, 58)
         pygame.draw.rect(screen, bg, self.rect, border_radius=12)
@@ -43,6 +45,7 @@ class UIMenuButton:
         self.border_inner = (179, 156, 101) # Bordure dorée intérieure
         self.text_color = (222, 205, 163)   # Texte beige/crème
 
+    # Retourne True si le bouton a été cliqué et False sinon
     def handle_event(self, event) -> bool:
         if event.type == pygame.MOUSEMOTION:
             self.hover = self.rect.collidepoint(event.pos)
@@ -51,6 +54,7 @@ class UIMenuButton:
                 return True
         return False
 
+    # Dessine le bouton avec style égyptien&
     def draw(self, screen: pygame.Surface):
         # Fond du bouton
         bg = self.bg_hover if self.hover else self.bg_normal
@@ -86,6 +90,7 @@ class UIToggle:
         self.border_inner = (179, 156, 101)
         self.text_color = (222, 205, 163)
 
+    # Retourne True si le bouton a été cliqué et False sinon
     def handle_event(self, event) -> bool:
         if event.type == pygame.MOUSEMOTION:
             self.hover = self.rect.collidepoint(event.pos)
@@ -95,6 +100,7 @@ class UIToggle:
                 return True
         return False
 
+    # Dessine le bouton avec style égyptien et status ON/OFF
     def draw(self, screen: pygame.Surface):
         # Fond du bouton
         bg = self.bg_hover if self.hover else self.bg_normal
@@ -146,12 +152,14 @@ class UISelector:
         self.left_rect = pygame.Rect(0, 0, self.arrow_size, self.arrow_size)
         self.right_rect = pygame.Rect(0, 0, self.arrow_size, self.arrow_size)
 
+    # Retourne la valeur actuellement selectionnee dans le selecteur
     def get_value(self):
         """Retourne la valeur actuellement selectionnee."""
         if 0 <= self.index < len(self.options):
             return self.options[self.index]
         return None
 
+    # Retourne True si le bouton a été cliqué et False sinon
     def handle_event(self, event) -> bool:
         if event.type == pygame.MOUSEMOTION:
             self.hover = self.rect.collidepoint(event.pos)
@@ -166,6 +174,7 @@ class UISelector:
                 return True
         return False
 
+    # Dessine le bouton avec style égyptien&& plus compact
     def draw(self, screen: pygame.Surface):
         # Fond du bouton
         bg = self.bg_hover if self.hover else self.bg_normal

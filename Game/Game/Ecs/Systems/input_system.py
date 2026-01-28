@@ -30,6 +30,7 @@ class InputSystem(esper.Processor):
     En mode 1v1, les deux joueurs peuvent jouer.
     """
 
+    # Initialise le système d'input avec support 1v1, factory et configuration des touches
     def __init__(self, factory, balance, player_pyramid_eid: int, enemy_pyramid_eid: int, nav_grid, *, lanes_y=None, game_mode="solo", keybindings=None):
         super().__init__()
         self.factory = factory
@@ -57,12 +58,14 @@ class InputSystem(esper.Processor):
 
         self._prev = {}
 
+    # Détecte si une touche vient juste d'être pressée (pas maintenue)
     def _just_pressed(self, keys, key_code: int) -> bool:
         now = bool(keys[key_code])
         before = bool(self._prev.get(key_code, False))
         self._prev[key_code] = now
         return now and not before
 
+    # Calcule les positions Y centrales des 3 lanes
     def _lane_centers(self) -> list[int]:
         h = int(getattr(self.nav_grid, "height", 0))
         if h <= 0:
@@ -72,6 +75,7 @@ class InputSystem(esper.Processor):
         c3 = max(0, min(h - 1, (5 * h) // 6))
         return [c1, c2, c3]
 
+    # Trouve une case marchable proche d'une position donnée
     def _find_walkable_near(self, x: int, y: int, max_r: int = 8):
         for r in range(0, max_r + 1):
             for dy in range(-r, r + 1):
@@ -88,6 +92,7 @@ class InputSystem(esper.Processor):
                                 return nx, ny
         return None
 
+    # Convertit la valeur de vitesse SAÉ en vitesse de déplacement
     def _v_to_move_speed(self, v_value: float) -> float:
         vb = float(self.balance.get("sae", {}).get("v_plus_b", 100.0))
         vb = vb if vb > 0 else 100.0
@@ -98,6 +103,7 @@ class InputSystem(esper.Processor):
 
         return max(0.6, speed)
 
+    # Fait apparaître une unité pour le joueur 1 sur la lane sélectionnée
     def _spawn_unit_player(self, unit_key: str):
         """Spawn une unité pour le joueur 1 (inchangé)."""
         try:
@@ -175,6 +181,7 @@ class InputSystem(esper.Processor):
 
         self.last_message = f"Spawn {unit_key} in lane {self.selected_lane + 1}"
 
+    # Fait apparaître une unité pour le joueur 2 en mode 1v1
     def _spawn_unit_player2(self, unit_key: str):
         """Spawn une unité pour le joueur 2 (mode 1v1 uniquement)."""
         if self.game_mode != "1v1":
@@ -253,6 +260,7 @@ class InputSystem(esper.Processor):
 
         self.last_message_p2 = f"P2: {unit_key} lane {self.selected_lane_p2 + 1}"
 
+    # Traite les inputs clavier pour sélection de lanes et spawn d'unités
     def process(self, dt: float):
         keys = pygame.key.get_pressed()
 

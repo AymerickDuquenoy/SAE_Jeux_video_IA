@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 @dataclass
+# Composant qui définit la vitesse de déplacement 2D d'une entité (en unités/seconde)
 class Velocity:
     """Composant ECS décrivant la vitesse 2D en unités monde par seconde.
 

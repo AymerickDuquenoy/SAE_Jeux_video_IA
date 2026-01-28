@@ -7,6 +7,7 @@ from .NavigationGrid import NavigationGrid
 class GridMap:
     """Charge et affiche une carte Tiled (.tmx) avec les terrains et obstacles."""
 
+    # Charge une carte TMX avec pytmx et initialise les dimensions
     def __init__(self, filename: str):
         self.tmx_data = pytmx.util_pygame.load_pygame(filename)
         self.tilewidth = self.tmx_data.tilewidth
@@ -18,6 +19,7 @@ class GridMap:
         self.tile_by_pos = {}
         self.load_tiles()
 
+    # Détermine le type de terrain depuis les propriétés Tiled
     def _terrain_type_from_props(self, props: dict) -> str:
         """
         Tiled peut stocker le type de terrain de plusieurs façons.
@@ -55,6 +57,7 @@ class GridMap:
 
         return "desert"
 
+    # Lit toutes les tuiles de la carte et stocke leurs propriétés
     def load_tiles(self):
         """Lit chaque tuile et récupère son type défini dans Tiled."""
         self.tiles = []
@@ -73,9 +76,11 @@ class GridMap:
                         self.tiles.append(tile)
                         self.tile_by_pos[(x, y)] = tile
 
+    # Retourne la tuile à une position donnée
     def get_tile(self, x: int, y: int):
         return self.tile_by_pos.get((x, y))
 
+    # Convertit la carte en grille de navigation pour A*
     def to_navigation_grid(self) -> NavigationGrid:
         """
         Fabrique une NavigationGrid (pour A*) depuis la map.
@@ -104,6 +109,7 @@ class GridMap:
 
         return nav
 
+    # Dessine toutes les tuiles visibles à l'écran avec offset caméra
     def draw(self, surface, camera_x=0, camera_y=0):
         """Dessine toutes les tuiles visibles à l’écran."""
         for tile in self.tiles:

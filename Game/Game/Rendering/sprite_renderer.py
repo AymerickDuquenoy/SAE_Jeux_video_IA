@@ -14,6 +14,7 @@ import time
 class SpriteRenderer:
     """Gère le rendu des sprites animés du jeu."""
     
+    # Initialise le renderer de sprites avec cache et paramètres d'animation
     def __init__(self):
         self.cache = {}  # Cache des frames redimensionnées
         self.sprites_loaded = False
@@ -37,6 +38,7 @@ class SpriteRenderer:
         # Vitesse d'animation (secondes par frame)
         self.anim_speed = 0.25
     
+    # Retourne le chemin complet vers un fichier sprite
     def _get_sprite_path(self, filename: str) -> str:
         """Retourne le chemin complet vers un sprite."""
         base_paths = [
@@ -51,6 +53,7 @@ class SpriteRenderer:
                 return path
         return None
     
+    # Charge et découpe tous les sprites en frames
     def _load_sprites(self):
         """Charge et découpe tous les sprites en frames."""
         if self.sprites_loaded:
@@ -105,10 +108,12 @@ class SpriteRenderer:
         
         self.sprites_loaded = True
     
+    # Retourne l'index de frame actuel (0 ou 1) pour l'animation
     def _get_current_frame_index(self) -> int:
         """Retourne l'index de frame actuel (0 ou 1) basé sur le temps."""
         return int(time.time() / self.anim_speed) % 2
     
+    # Retourne une frame redimensionnée avec mise en cache
     def _get_scaled_frame(self, key: str, size: int, frame_idx: int) -> pygame.Surface:
         """Retourne une frame redimensionnée (avec cache)."""
         cache_key = f"{key}_{size}_{frame_idx}"
@@ -131,6 +136,7 @@ class SpriteRenderer:
         
         return None
     
+    # Dessine une momie animée avec sa barre de vie
     def draw_momie(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0, is_moving: bool = True):
         """Dessine une Momie animée (frame droite si à l'arrêt)."""
         key = f"momie_{team_id}"
@@ -153,6 +159,7 @@ class SpriteRenderer:
         
         self._draw_health_bar(screen, x, y - self.momie_size // 2 - 4, 18, hp_ratio, team_id)
     
+    # Dessine un dromadaire animé avec sa barre de vie
     def draw_dromadaire(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0, is_moving: bool = True):
         """Dessine un Dromadaire animé (frame droite si à l'arrêt)."""
         key = f"dromadaire_{team_id}"
@@ -175,6 +182,7 @@ class SpriteRenderer:
         
         self._draw_health_bar(screen, x, y - self.dromadaire_size // 2 - 4, 22, hp_ratio, team_id)
     
+    # Dessine un sphinx animé avec sa barre de vie
     def draw_sphinx(self, screen: pygame.Surface, x: int, y: int, team_id: int, hp_ratio: float = 1.0, is_moving: bool = True):
         """Dessine un Sphinx animé (frame droite si à l'arrêt)."""
         key = f"sphinx_{team_id}"
@@ -197,6 +205,7 @@ class SpriteRenderer:
         
         self._draw_health_bar(screen, x, y - self.sphinx_size // 2 - 4, 28, hp_ratio, team_id)
     
+    # Dessine une pyramide avec sprite PNG selon niveau et équipe
     def draw_pyramid(self, screen: pygame.Surface, x: int, y: int, team_id: int, 
                      hp_ratio: float = 1.0, level: int = 1):
         """Dessine une Pyramide avec sprite PNG."""
@@ -247,6 +256,7 @@ class SpriteRenderer:
             # Fallback: dessin procédural si sprite non trouvé
             self._draw_pyramid_fallback(screen, x, y, team_id, hp_ratio, level)
     
+    # Dessine une pyramide procédurale si sprite manquant (fallback)
     def _draw_pyramid_fallback(self, screen: pygame.Surface, x: int, y: int, 
                                 team_id: int, hp_ratio: float, level: int):
         """Dessine une pyramide procédurale (fallback si sprite manquant)."""
@@ -292,6 +302,7 @@ class SpriteRenderer:
         hp_color = (80, 220, 140) if team_id == 1 else (240, 100, 100)
         pygame.draw.rect(screen, hp_color, (bar_x, bar_y, int(bar_w * hp_ratio), bar_h))
     
+    # Dessine un projectile coloré selon l'équipe
     def draw_projectile(self, screen: pygame.Surface, x: int, y: int, team_id: int):
         """Dessine un projectile."""
         if team_id == 1:
@@ -302,6 +313,7 @@ class SpriteRenderer:
         pygame.draw.circle(screen, color, (x, y), 4)
         pygame.draw.circle(screen, (255, 255, 255), (x, y), 2)
     
+    # Dessine une barre de vie au-dessus d'une entité
     def _draw_health_bar(self, screen: pygame.Surface, x: int, y: int, 
                          width: int, ratio: float, team_id: int):
         """Dessine une barre de vie."""

@@ -23,10 +23,12 @@ class AIBehaviorSystem(esper.Processor):
     Toutes les unités ont le même comportement de combat.
     """
 
+    # Initialise le système IA avec la liste des pyramides protégées
     def __init__(self, pyramid_ids: set[int]):
         super().__init__()
         self.pyramid_ids = set(int(x) for x in pyramid_ids)
 
+    # Traite le comportement IA (actuellement délégué à d'autres systèmes)
     def process(self, dt: float):
         # Ce système ne fait plus rien de spécial
         # Le ciblage et le combat sont gérés par TargetingSystem et CombatSystem

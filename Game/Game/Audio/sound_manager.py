@@ -14,6 +14,7 @@ from pathlib import Path
 class SoundManager:
     """Gère les effets sonores et la musique du jeu."""
     
+    # Initialise le gestionnaire de sons avec pygame.mixer et charge tous les sons
     def __init__(self):
         self.initialized = False
         self.enabled = True
@@ -35,6 +36,7 @@ class SoundManager:
             print(f"[WARN] Sound init failed: {e}")
             self.initialized = False
     
+    # Charge les fichiers audio depuis le disque ou génère des sons procéduraux si absents
     def _load_or_generate_sounds(self):
         """Charge les fichiers audio ou génère des sons procéduraux."""
         if not self.initialized:
@@ -71,6 +73,7 @@ class SoundManager:
                 # Générer un son procédural style égyptien
                 self._generate_fallback_sound(sound_name, sample_rate)
     
+    # Génère un son procédural de remplacement dans le style égyptien selon le type demandé
     def _generate_fallback_sound(self, sound_name: str, sample_rate: int):
         """Génère un son procédural style oriental/égyptien."""
         
@@ -119,6 +122,7 @@ class SoundManager:
             # Son par défaut
             self.sounds[sound_name] = self._make_simple_tone(300, 0.2, sample_rate)
     
+    # Crée un son de percussion doumbek avec basses fréquences et bruit d'attaque
     def _make_doumbek_hit(self, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée un son de percussion doumbek/darbouka."""
         n = int(sr * duration)
@@ -144,6 +148,7 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
+    # Crée un sifflement de projectile avec fréquence descendante
     def _make_oriental_whoosh(self, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée un sifflement style flèche/projectile."""
         n = int(sr * duration)
@@ -166,6 +171,7 @@ class SoundManager:
         sound.set_volume(self.volume * 0.7)
         return sound
     
+    # Crée une descente mélodique orientale avec vibrato
     def _make_oriental_descent(self, scale: list, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée une descente mélodique orientale."""
         n = int(sr * duration)
@@ -192,6 +198,7 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
+    # Crée une montée mystique avec notes ascendantes et harmoniques
     def _make_mystical_rise(self, scale: list, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée une montée mystique."""
         n = int(sr * duration)
@@ -221,6 +228,7 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
+    # Crée un arpège de harpe égyptienne avec plusieurs notes successives
     def _make_harp_arpeggio(self, scale: list, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée un arpège de harpe égyptienne."""
         n = int(sr * duration)
@@ -252,6 +260,7 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
+    # Crée un son simple de harpe pincée avec harmoniques
     def _make_harp_pluck(self, freq: float, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée un son de harpe simple."""
         n = int(sr * duration)
@@ -270,6 +279,7 @@ class SoundManager:
         sound.set_volume(self.volume * 0.6)
         return sound
     
+    # Crée un son de cloche ou gong mystique avec fréquences inharmoniques
     def _make_mystical_bell(self, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée un son de cloche/gong mystique."""
         n = int(sr * duration)
@@ -293,6 +303,7 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
+    # Crée une fanfare de victoire triomphante avec mélodie ascendante
     def _make_victory_fanfare(self, scale: list, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée une fanfare de victoire orientale."""
         n = int(sr * duration)
@@ -331,6 +342,7 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
+    # Crée une lamentation de défaite avec mélodie descendante et vibrato mélancolique
     def _make_lament(self, scale: list, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée une lamentation de défaite."""
         n = int(sr * duration)
@@ -359,6 +371,7 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
+    # Crée un son simple avec une seule fréquence et enveloppe basique
     def _make_simple_tone(self, freq: float, duration: float, sr: int) -> pygame.mixer.Sound:
         """Crée un son simple."""
         n = int(sr * duration)
@@ -374,6 +387,7 @@ class SoundManager:
         sound.set_volume(self.volume)
         return sound
     
+    # Joue un effet sonore par son nom si les sons sont activés
     def play(self, sound_name: str):
         """Joue un son par son nom."""
         if not self.initialized or not self.enabled:
@@ -385,6 +399,7 @@ class SoundManager:
             except:
                 pass
     
+    # Joue la musique de fond en boucle depuis un fichier
     def play_music(self, music_file: str = None):
         """Joue la musique de fond."""
         if not self.initialized or not self.music_enabled:
@@ -414,29 +429,34 @@ class SoundManager:
         else:
             print(f"[WARN] No music file found in {self.audio_path}")
     
+    # Arrête la lecture de la musique de fond
     def stop_music(self):
         """Arrête la musique."""
         if self.initialized:
             pygame.mixer.music.stop()
             self.music_playing = False
     
+    # Définit le volume des effets sonores entre 0.0 et 1.0
     def set_volume(self, vol: float):
         """Définit le volume des effets (0.0 à 1.0)."""
         self.volume = max(0.0, min(1.0, vol))
         for sound in self.sounds.values():
             sound.set_volume(self.volume)
     
+    # Définit le volume de la musique entre 0.0 et 1.0
     def set_music_volume(self, vol: float):
         """Définit le volume de la musique (0.0 à 1.0)."""
         self.music_volume = max(0.0, min(1.0, vol))
         if self.initialized:
             pygame.mixer.music.set_volume(self.music_volume)
     
+    # Active ou désactive les effets sonores
     def toggle(self):
         """Active/désactive les sons."""
         self.enabled = not self.enabled
         return self.enabled
     
+    # Active ou désactive la musique de fond
     def toggle_music(self):
         """Active/désactive la musique."""
         self.music_enabled = not self.music_enabled

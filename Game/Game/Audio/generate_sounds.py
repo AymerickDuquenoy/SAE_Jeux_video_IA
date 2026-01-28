@@ -15,10 +15,12 @@ import random
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "sounds")
 SAMPLE_RATE = 44100
 
+# Crée le dossier de sortie pour les fichiers audio s'il n'existe pas déjà
 def ensure_output_dir():
     """Crée le dossier de sortie s'il n'existe pas."""
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# Sauvegarde une liste d'échantillons audio dans un fichier WAV 16-bit mono
 def save_wav(filename: str, samples: list, sample_rate: int = SAMPLE_RATE):
     """Sauvegarde les samples en fichier WAV 16-bit mono."""
     filepath = os.path.join(OUTPUT_DIR, filename)
@@ -41,12 +43,14 @@ def save_wav(filename: str, samples: list, sample_rate: int = SAMPLE_RATE):
 # ============================================================================
 
 # Maqam Hijaz - très égyptien/oriental (1, 3, 1, 2, 1, 3, 1 demi-tons)
+# Retourne les fréquences de la gamme orientale Hijaz (style égyptien)
 def maqam_hijaz(base_freq: float) -> list:
     """Retourne les fréquences du maqam Hijaz."""
     ratios = [1, 1.0595, 1.2599, 1.3348, 1.4983, 1.5874, 1.8877, 2.0]
     return [base_freq * r for r in ratios]
 
 # Maqam Bayati - mélancolique (3/4, 3/4, 1, 1, 1/2, 1, 1 tons)
+# Retourne les fréquences de la gamme orientale Bayati (style mélancolique)
 def maqam_bayati(base_freq: float) -> list:
     """Retourne les fréquences du maqam Bayati."""
     ratios = [1, 1.0595, 1.1892, 1.3348, 1.4983, 1.5874, 1.7818, 2.0]
@@ -56,6 +60,7 @@ def maqam_bayati(base_freq: float) -> list:
 # FONCTIONS DE SYNTHÈSE
 # ============================================================================
 
+# Génère une enveloppe ADSR (Attack, Decay, Sustain, Release) pour modeler le son
 def envelope_adsr(t: float, attack: float, decay: float, sustain: float, 
                   release: float, duration: float) -> float:
     """Envelope ADSR."""
@@ -68,20 +73,24 @@ def envelope_adsr(t: float, attack: float, decay: float, sustain: float,
     else:
         return sustain * (duration - t) / release
 
+# Génère une enveloppe percussive avec attaque rapide et déclin exponentiel
 def envelope_percussive(t: float, attack: float = 0.005, decay_rate: float = 10) -> float:
     """Envelope percussive (attaque rapide, decay exponentiel)."""
     if t < attack:
         return t / attack
     return math.exp(-(t - attack) * decay_rate)
 
+# Génère un échantillon de bruit blanc aléatoire
 def noise() -> float:
     """Génère du bruit blanc."""
     return random.uniform(-1, 1)
 
+# Génère une onde sinusoïdale à une fréquence donnée
 def sine(freq: float, t: float, phase: float = 0) -> float:
     """Onde sinusoïdale."""
     return math.sin(2 * math.pi * freq * t + phase)
 
+# Génère une onde triangulaire à une fréquence donnée
 def triangle(freq: float, t: float) -> float:
     """Onde triangulaire."""
     period = 1 / freq
@@ -92,6 +101,7 @@ def triangle(freq: float, t: float) -> float:
 # GÉNÉRATEURS DE SONS ÉGYPTIENS
 # ============================================================================
 
+# Génère un son de doumbek (percussion égyptienne traditionnelle)
 def generate_doumbek_hit() -> list:
     """Génère un son de doumbek/darbouka (percussion égyptienne)."""
     duration = 0.25
@@ -121,6 +131,7 @@ def generate_doumbek_hit() -> list:
     
     return samples
 
+# Génère un son 'tek' aigu et sec du doumbek
 def generate_tek_sound() -> list:
     """Génère un son 'tek' aigu de doumbek."""
     duration = 0.12
@@ -144,6 +155,7 @@ def generate_tek_sound() -> list:
     
     return samples
 
+# Génère un son de harpe égyptienne avec harmoniques
 def generate_harp_pluck(freq: float, duration: float = 0.4) -> list:
     """Génère un son de harpe égyptienne."""
     samples = []
@@ -167,6 +179,7 @@ def generate_harp_pluck(freq: float, duration: float = 0.4) -> list:
     
     return samples
 
+# Génère un son de oud (luth arabe) avec vibrato oriental
 def generate_oud_note(freq: float, duration: float = 0.5) -> list:
     """Génère un son de oud (luth arabe)."""
     samples = []
@@ -192,6 +205,7 @@ def generate_oud_note(freq: float, duration: float = 0.5) -> list:
     
     return samples
 
+# Génère un son de cloche mystique de temple avec harmoniques inharmoniques
 def generate_mystical_bell() -> list:
     """Génère un son de cloche mystique/temple."""
     duration = 1.2
@@ -214,6 +228,7 @@ def generate_mystical_bell() -> list:
     
     return samples
 
+# Génère un son de flèche en vol avec fréquence descendante
 def generate_arrow_whoosh() -> list:
     """Génère un son de flèche/projectile."""
     duration = 0.15
@@ -238,6 +253,7 @@ def generate_arrow_whoosh() -> list:
     
     return samples
 
+# Génère un son d'impact sourd
 def generate_impact_hit() -> list:
     """Génère un son d'impact."""
     duration = 0.18
@@ -260,6 +276,7 @@ def generate_impact_hit() -> list:
     
     return samples
 
+# Génère un son de mort dramatique avec descente de fréquence
 def generate_death_sound() -> list:
     """Génère un son de mort (descente mélodique)."""
     duration = 0.45
@@ -288,6 +305,7 @@ def generate_death_sound() -> list:
     
     return samples
 
+# Génère un son d'apparition magique avec montée de fréquence
 def generate_spawn_sound() -> list:
     """Génère un son de spawn (montée mystique)."""
     duration = 0.3
@@ -315,6 +333,7 @@ def generate_spawn_sound() -> list:
     
     return samples
 
+# Génère un arpège montant pour le son d'amélioration
 def generate_upgrade_arpeggio() -> list:
     """Génère un arpège d'upgrade (harpe égyptienne)."""
     samples = []
@@ -345,6 +364,7 @@ def generate_upgrade_arpeggio() -> list:
     
     return samples
 
+# Génère une fanfare de victoire triomphante
 def generate_victory_fanfare() -> list:
     """Génère une fanfare de victoire."""
     samples = []
@@ -388,6 +408,7 @@ def generate_victory_fanfare() -> list:
     
     return samples
 
+# Génère une lamentation mélancolique de défaite
 def generate_defeat_lament() -> list:
     """Génère une lamentation de défaite."""
     samples = []
@@ -428,6 +449,7 @@ def generate_defeat_lament() -> list:
     
     return samples
 
+# Génère un son de gong pour les événements importants
 def generate_event_gong() -> list:
     """Génère un son de gong pour les événements."""
     duration = 0.8
@@ -454,6 +476,7 @@ def generate_event_gong() -> list:
     
     return samples
 
+# Génère un son de clic doux et subtil pour la sélection
 def generate_select_click() -> list:
     """Génère un son de sélection doux (petit tintement subtil)."""
     duration = 0.12
@@ -479,6 +502,7 @@ def generate_select_click() -> list:
     
     return samples
 
+# Génère une boucle musicale complète de 8 secondes style égyptien
 def generate_music_loop() -> list:
     """Génère une boucle musicale style égyptien (8 secondes)."""
     duration = 8.0
@@ -548,6 +572,7 @@ def generate_music_loop() -> list:
 # MAIN
 # ============================================================================
 
+# Fonction principale qui génère tous les fichiers sons et musiques
 def main():
     print("=" * 50)
     print("Génération des sons égyptiens pour Antique War")
