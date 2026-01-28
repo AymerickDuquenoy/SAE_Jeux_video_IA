@@ -143,6 +143,12 @@ class InputSystem(esper.Processor):
         try:
             from Game.Audio.sound_manager import sound_manager
             sound_manager.play("spawn")
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.play("spawn")
+            except:
+                pass
         except:
             pass
 
@@ -217,6 +223,12 @@ class InputSystem(esper.Processor):
         try:
             from Game.Audio.sound_manager import sound_manager
             sound_manager.play("spawn")
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.play("spawn")
+            except:
+                pass
         except:
             pass
 

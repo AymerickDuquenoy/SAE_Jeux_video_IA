@@ -29,8 +29,12 @@ class ProjectileSystem(esper.Processor):
             try:
                 from Game.Audio.sound_manager import sound_manager
                 self._sound_manager = sound_manager
-            except:
-                pass
+            except ImportError:
+                try:
+                    from Audio.sound_manager import sound_manager
+                    self._sound_manager = sound_manager
+                except ImportError:
+                    pass
         return self._sound_manager
 
     def process(self, dt: float):

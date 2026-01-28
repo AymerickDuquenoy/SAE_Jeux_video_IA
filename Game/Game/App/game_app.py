@@ -421,8 +421,13 @@ class GameApp:
         return idx
 
     def _set_selected_lane_index(self, idx: int):
+        old_idx = getattr(self, 'selected_lane_idx', 1)
         idx = max(0, min(2, int(idx)))
         self.selected_lane_idx = idx
+
+        # Jouer le son de sélection si la lane change pendant le jeu
+        if self.state == "playing" and idx != old_idx:
+            self._play_sound("select")
 
         # on pousse aussi dans InputSystem si possible
         if self.input_system:
@@ -987,6 +992,19 @@ class GameApp:
 
         # ✅ reset lane -> lane2
         self.selected_lane_idx = 1
+        
+        # ✅ Arrêter la musique
+        try:
+            from Game.Audio.sound_manager import sound_manager
+            sound_manager.stop_music()
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.stop_music()
+            except:
+                pass
+        except:
+            pass
 
     def _setup_match(self):
         self.match_index += 1
@@ -1313,6 +1331,19 @@ class GameApp:
 
         # ✅ preview au spawn (lane2)
         self._flash_lane()
+        
+        # ✅ Démarrer la musique de fond
+        try:
+            from Game.Audio.sound_manager import sound_manager
+            sound_manager.play_music()
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.play_music()
+            except Exception as e:
+                print(f"[WARN] Could not start music: {e}")
+        except Exception as e:
+            print(f"[WARN] Could not start music: {e}")
 
     # ----------------------------
     # Draw helpers
@@ -1405,6 +1436,12 @@ class GameApp:
         try:
             from Game.Audio.sound_manager import sound_manager
             sound_manager.play("upgrade")
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.play("upgrade")
+            except:
+                pass
         except:
             pass
 
@@ -1479,6 +1516,12 @@ class GameApp:
         try:
             from Game.Audio.sound_manager import sound_manager
             sound_manager.play(sound_name)
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.play(sound_name)
+            except:
+                pass
         except:
             pass
 

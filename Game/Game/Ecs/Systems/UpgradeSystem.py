@@ -122,6 +122,19 @@ class UpgradeSystem:
         income.rate = float(income.rate) * self.prod_multiplier
 
         self.last_message = f"Upgrade pyramide -> niveau {level.level}."
+        
+        # Son d'upgrade
+        try:
+            from Game.Audio.sound_manager import sound_manager
+            sound_manager.play("upgrade")
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.play("upgrade")
+            except:
+                pass
+        except:
+            pass
 
     # bonus : permet aussi de fonctionner si ton World appelle system(dt) ou system(world, dt)
     def __call__(self, *args, **kwargs):

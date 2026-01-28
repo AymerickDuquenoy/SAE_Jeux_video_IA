@@ -78,6 +78,19 @@ class RandomEventSystem(esper.Processor):
 
     def _trigger_random_event(self):
         """Déclenche un événement aléatoire."""
+        # Jouer le son d'événement
+        try:
+            from Game.Audio.sound_manager import sound_manager
+            sound_manager.play("event")
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.play("event")
+            except:
+                pass
+        except:
+            pass
+        
         event_type = random.choice(["sandstorm", "locusts", "whip_bonus"])
         
         if event_type == "sandstorm":
