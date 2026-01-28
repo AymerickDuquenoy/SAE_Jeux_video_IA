@@ -281,6 +281,7 @@ class GameApp:
         self.selected_lane_idx_p2 = 1
         self.unit_btn_rects_p2 = {}
         self.lane_btn_rects_p2 = []
+        self.upgrade_btn_rect_p2 = None
 
         # options
         self.opt_show_terrain = False
@@ -1317,6 +1318,11 @@ class GameApp:
                     self.input_system._spawn_unit_player2(unit_key)
                     return True
         
+        # Vérifier clic sur bouton upgrade P2
+        if self.upgrade_btn_rect_p2 and self.upgrade_btn_rect_p2.collidepoint(mx, my):
+            self._upgrade_pyramid_p2()
+            return True
+        
         # Vérifier clic sur sélecteur de lane P2
         for i, rect in enumerate(self.lane_btn_rects_p2):
             if rect and rect.collidepoint(mx, my):
@@ -1326,6 +1332,52 @@ class GameApp:
                 return True
         
         return False
+
+    def _upgrade_pyramid_p2(self):
+        """Upgrade la pyramide du joueur 2."""
+        if self.game_mode != "1v1":
+            return
+        
+        if self.world:
+            self.world._activate()
+        
+        try:
+            wallet = esper.component_for_entity(self.enemy_pyramid_eid, Wallet)
+            pyr_level = esper.component_for_entity(self.enemy_pyramid_eid, PyramidLevel)
+            health = esper.component_for_entity(self.enemy_pyramid_eid, Health)
+        except:
+            return
+        
+        max_level = int(self.balance.get("pyramid", {}).get("level_max", 5))
+        upgrade_costs = self.balance.get("pyramid", {}).get("upgrade_costs", [100, 125, 150, 175, 200])
+        
+        if pyr_level.level >= max_level:
+            return
+        
+        cost_idx = pyr_level.level - 1
+        if cost_idx >= len(upgrade_costs):
+            return
+        
+        cost = upgrade_costs[cost_idx]
+        
+        if wallet.solde < cost:
+            return
+        
+        # Effectuer l'upgrade
+        wallet.solde -= cost
+        pyr_level.level += 1
+        
+        # Augmenter les HP
+        hp_bonus = 100
+        health.hp_max += hp_bonus
+        health.hp += hp_bonus
+        
+        # Son
+        try:
+            from Game.Audio.sound_manager import sound_manager
+            sound_manager.play("upgrade")
+        except:
+            pass
 
     def _handle_lane_selector_click(self, mx: int, my: int) -> bool:
         # Gérer les clics HUD Joueur 1

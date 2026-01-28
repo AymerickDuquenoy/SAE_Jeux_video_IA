@@ -220,23 +220,24 @@ class HUDRenderer:
         hp_text = self.app.font_small.render(f"{player_hp.hp}/{player_hp.hp_max}", True, text_light)
         self.app.screen.blit(hp_text, (bar_x + bar_w + 6, bar_y - 1))
         
-        # Barre de vie ennemi
-        bar_y = panel_y + 62
-        
-        enemy_label = self.app.font_small.render("Ennemi", True, (220, 150, 150))
-        self.app.screen.blit(enemy_label, (panel_x + 15, bar_y - 1))
-        
-        bar_x = panel_x + 70
-        bar_w = 105
-        hp_ratio = enemy_hp.hp / max(1, enemy_hp.hp_max)
-        pygame.draw.rect(self.app.screen, (50, 40, 40), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
-        fill_w = max(0, int((bar_w - 4) * hp_ratio))
-        if fill_w > 0:
-            pygame.draw.rect(self.app.screen, (220, 80, 80), (bar_x + 2, bar_y + 2, fill_w, bar_h - 4), border_radius=2)
-        pygame.draw.rect(self.app.screen, (160, 100, 100), (bar_x, bar_y, bar_w, bar_h), 2, border_radius=3)
-        
-        hp_text = self.app.font_small.render(f"{enemy_hp.hp}/{enemy_hp.hp_max}", True, (255, 200, 200))
-        self.app.screen.blit(hp_text, (bar_x + bar_w + 6, bar_y - 1))
+        # Barre de vie ennemi (masquée en mode 1v1 car présente dans le HUD P2)
+        if self.app.game_mode != "1v1":
+            bar_y = panel_y + 62
+            
+            enemy_label = self.app.font_small.render("Ennemi", True, (220, 150, 150))
+            self.app.screen.blit(enemy_label, (panel_x + 15, bar_y - 1))
+            
+            bar_x = panel_x + 70
+            bar_w = 105
+            hp_ratio = enemy_hp.hp / max(1, enemy_hp.hp_max)
+            pygame.draw.rect(self.app.screen, (50, 40, 40), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+            fill_w = max(0, int((bar_w - 4) * hp_ratio))
+            if fill_w > 0:
+                pygame.draw.rect(self.app.screen, (220, 80, 80), (bar_x + 2, bar_y + 2, fill_w, bar_h - 4), border_radius=2)
+            pygame.draw.rect(self.app.screen, (160, 100, 100), (bar_x, bar_y, bar_w, bar_h), 2, border_radius=3)
+            
+            hp_text = self.app.font_small.render(f"{enemy_hp.hp}/{enemy_hp.hp_max}", True, (255, 200, 200))
+            self.app.screen.blit(hp_text, (bar_x + bar_w + 6, bar_y - 1))
         
         # Boutons unités
         units_y = panel_y + panel_h + 10
@@ -475,10 +476,12 @@ class HUDRenderer:
             pygame.draw.rect(self.app.screen, (80, 150, 220), (bar_x + 2, bar_y + 2, fill_w, bar_h - 4), border_radius=2)
         pygame.draw.rect(self.app.screen, blue_dark, (bar_x, bar_y, bar_w, bar_h), 2, border_radius=3)
         
-        # Boutons unités P2
+        # Boutons P2 : [Upgrade] [S] [M] [L] alignés à droite
         units_y = panel_y + panel_h + 10
         btn_size = 50
         btn_gap = 8
+        upgrade_w = 55
+        upgrade_h = btn_size + 18
         
         try:
             unit_data = {
@@ -493,9 +496,69 @@ class HUDRenderer:
                 "L": {"cost": 180, "key": "9", "name": "Sphinx"},
             }
         
-        # Aligner à droite
-        total_btns_w = len(unit_data) * btn_size + (len(unit_data) - 1) * btn_gap
-        btn_x = self.app.base_width - 12 - total_btns_w
+        # Calculer largeur totale : upgrade + 3 boutons
+        total_units_w = len(unit_data) * btn_size + (len(unit_data) - 1) * btn_gap
+        total_w = upgrade_w + btn_gap + total_units_w
+        
+        # Position de départ (bouton upgrade à gauche)
+        start_x = self.app.base_width - 12 - total_w
+        
+        # === BOUTON UPGRADE P2 (à gauche) ===
+        upgrade_x = start_x
+        
+        try:
+            pyr_level = esper.component_for_entity(self.app.enemy_pyramid_eid, PyramidLevel)
+            current_level = pyr_level.level
+        except:
+            current_level = 1
+        
+        max_level = int(self.app.balance.get("pyramid", {}).get("level_max", 5))
+        upgrade_costs = self.app.balance.get("pyramid", {}).get("upgrade_costs", [100, 125, 150, 175, 200])
+        
+        can_upgrade = current_level < max_level
+        if can_upgrade and current_level - 1 < len(upgrade_costs):
+            upgrade_cost = upgrade_costs[current_level - 1]
+            can_afford_upgrade = wallet.solde >= upgrade_cost
+        else:
+            upgrade_cost = 0
+            can_afford_upgrade = False
+        
+        self.app.upgrade_btn_rect_p2 = pygame.Rect(upgrade_x, units_y, upgrade_w, upgrade_h)
+        
+        if can_upgrade and can_afford_upgrade:
+            bg_color = (40, 55, 70, 230)
+            border_color = (100, 180, 220)
+        elif can_upgrade:
+            bg_color = (40, 50, 60, 200)
+            border_color = blue_dark
+        else:
+            bg_color = (40, 40, 45, 180)
+            border_color = (60, 80, 100)
+        
+        upgrade_surf = pygame.Surface((upgrade_w, upgrade_h), pygame.SRCALPHA)
+        upgrade_surf.fill(bg_color)
+        self.app.screen.blit(upgrade_surf, (upgrade_x, units_y))
+        pygame.draw.rect(self.app.screen, border_color, self.app.upgrade_btn_rect_p2, 2, border_radius=6)
+        
+        self.draw_upgrade_icon(self.app.screen, upgrade_x + (upgrade_w - 28) // 2, units_y + 5, 28)
+        
+        if can_upgrade:
+            level_text = self.app.font_small.render(f"Nv.{current_level + 1}", True, text_blue)
+            cost_color = (100, 200, 150) if can_afford_upgrade else (180, 100, 100)
+            cost_text = self.app.font_small.render(f"{upgrade_cost}", True, cost_color)
+        else:
+            level_text = self.app.font_small.render("MAX", True, (150, 180, 200))
+            cost_text = None
+        
+        level_rect = level_text.get_rect(centerx=upgrade_x + upgrade_w // 2, top=units_y + 36)
+        self.app.screen.blit(level_text, level_rect)
+        
+        if cost_text:
+            cost_rect = cost_text.get_rect(centerx=upgrade_x + upgrade_w // 2, top=units_y + btn_size + 2)
+            self.app.screen.blit(cost_text, cost_rect)
+        
+        # === BOUTONS UNITÉS P2 (à droite de l'upgrade) ===
+        btn_x = upgrade_x + upgrade_w + btn_gap
         
         self.app.unit_btn_rects_p2 = {}
         for unit_key, data in unit_data.items():
