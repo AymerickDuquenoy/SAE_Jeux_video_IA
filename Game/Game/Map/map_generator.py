@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
+# Génère un fichier TMX aléatoire avec tuiles de sable et zones de sables mouvants
 def generate_tmx_map(
     output_path: Path,
     *,
@@ -129,6 +130,7 @@ def generate_tmx_map(
     tree.write(output_path, encoding="utf-8", xml_declaration=True)
 
 
+# Extrait la configuration de carte depuis le fichier balance
 def get_default_map_config(balance: dict) -> dict:
     """
     Extract map configuration from balance config.

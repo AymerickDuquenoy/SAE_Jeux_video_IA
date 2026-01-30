@@ -1,15 +1,12 @@
 """
 TargetingSystem - Assigne les cibles aux unités.
 
-RÈGLES CRITIQUES :
-1. Les troupes ne ciblent que les ennemis sur la MÊME LANE (via Lane.index)
-2. La pyramide n'est ciblée que si l'unité est ARRIVÉE (chemin terminé)
-3. Priorité : troupes ennemies > pyramide
-
-IA DIFFÉRENCIÉE :
-- Momie (S): comportement normal, attaque sur la lane
-- Dromadaire (M): comportement normal, attaque sur la lane
-- Sphinx (L): ignore les troupes, cible directement la pyramide
+RÈGLES :
+1. Les troupes ciblent les ennemis sur la MÊME LANE (Lane.index identique)
+2. OU quand les lanes CONVERGENT physiquement (même position Y = chemins confondus)
+3. La pyramide n'est ciblée que si l'unité est ARRIVÉE (chemin terminé)
+4. Priorité : troupes ennemies > pyramide
+5. TOUTES les unités (Momie, Dromadaire, Sphinx) se défendent
 """
 import math
 import esper
@@ -28,30 +25,28 @@ from Game.Ecs.Components.lane import Lane
 class TargetingSystem(esper.Processor):
     """
     Assigne les cibles en utilisant le composant Lane.index.
+    Combat si même lane OU si les lanes convergent (même position Y).
     """
 
+    # Tolérance pour détecter la convergence des lanes
+    # Si deux unités sont à moins de cette distance en Y, elles sont "sur le même chemin"
+    CONVERGENCE_TOLERANCE = 0.4
+
+    # Initialise le système de ciblage avec les objectifs et pyramides
     def __init__(self, *, goals_by_team: dict, pyramid_ids: set[int], attack_range: float = 2.0):
         super().__init__()
         self.goals_by_team = goals_by_team
         self.pyramid_ids = set(int(x) for x in pyramid_ids)
-        self.attack_range = float(attack_range)  # Synchronisé avec CombatSystem et NavigationSystem
+        self.attack_range = float(attack_range)
 
-    def _get_unit_type(self, stats: UnitStats) -> str:
-        """Détermine le type d'unité (S/M/L) basé sur les stats."""
-        power = getattr(stats, 'power', 0)
-        if power <= 9:
-            return "S"  # Momie
-        elif power <= 14:
-            return "M"  # Dromadaire
-        else:
-            return "L"  # Sphinx
-
+    # Retourne l'index de lane d'une entité (-1 si pas de lane)
     def _get_lane_index(self, ent: int) -> int:
         """Retourne l'index de lane (-1 si pas de lane)."""
         if esper.has_component(ent, Lane):
             return esper.component_for_entity(ent, Lane).index
         return -1
 
+    # Vérifie si une unité est arrivée à destination (fin de chemin)
     def _is_arrived(self, ent: int) -> bool:
         """Vérifie si l'unité est arrivée à destination."""
         if not esper.has_component(ent, Path):
@@ -70,6 +65,7 @@ class TargetingSystem(esper.Processor):
         
         return False
 
+    # Assigne les cibles aux unités selon leur lane et la proximité
     def process(self, dt: float):
         # Collecter toutes les cibles potentielles avec leur lane
         candidates = []
@@ -87,11 +83,7 @@ class TargetingSystem(esper.Processor):
                     continue
 
             ax, ay = t.pos
-            unit_type = self._get_unit_type(stats)
             my_lane = self._get_lane_index(eid)
-            
-            # Portée identique pour tous (pas de bonus)
-            effective_range = self.attack_range
             
             best_unit_id = None
             best_unit_dist = 999999.0
@@ -108,7 +100,7 @@ class TargetingSystem(esper.Processor):
                 bx, by = ct.pos
                 d = math.hypot(bx - ax, by - ay)
 
-                if d > effective_range:
+                if d > self.attack_range:
                     continue
 
                 if is_pyramid:
@@ -116,24 +108,24 @@ class TargetingSystem(esper.Processor):
                         best_pyramid_dist = d
                         best_pyramid_id = cid
                 else:
-                    # Sphinx ignore les unités ennemies
-                    if unit_type == "L":
-                        continue
-                    
-                    # Logique de ciblage par lane :
-                    # 1. Même Lane.index → cibler
-                    # 2. Lanes différentes MAIS très proches (chemins croisés) → cibler aussi
+                    # LOGIQUE DE CIBLAGE :
+                    # 1. Même Lane.index → combat
+                    # 2. Lanes différentes MAIS convergence physique (même Y) → combat
                     same_lane = False
                     
                     if my_lane >= 0 and enemy_lane >= 0:
+                        # Les deux ont une lane assignée
                         if my_lane == enemy_lane:
+                            # Même lane → combat OK
                             same_lane = True
-                        elif abs(ay - by) <= 0.8:
-                            # Chemins qui se croisent - assez proches pour combattre
+                        elif abs(ay - by) <= self.CONVERGENCE_TOLERANCE:
+                            # Lanes différentes MAIS physiquement au même endroit
+                            # = les chemins convergent (ex: près des pyramides)
                             same_lane = True
-                    else:
-                        # Fallback: comparer Y si pas de lane assignée
-                        if abs(ay - by) <= 0.8:
+                    elif my_lane < 0 or enemy_lane < 0:
+                        # Une ou les deux n'ont pas de lane assignée
+                        # Utiliser uniquement la proximité Y
+                        if abs(ay - by) <= self.CONVERGENCE_TOLERANCE:
                             same_lane = True
                     
                     if not same_lane:
@@ -143,30 +135,17 @@ class TargetingSystem(esper.Processor):
                         best_unit_dist = d
                         best_unit_id = cid
 
-            # Décision de ciblage selon le type
-            if unit_type == "L":
-                # Sphinx: TOUJOURS cibler la pyramide si à portée ou arrivé
-                if best_pyramid_id is not None:
-                    self._set_target(eid, best_pyramid_id, "pyramid")
-                elif self._is_arrived(eid):
-                    # Chercher pyramide même hors portée
-                    for cid, ct, cteam, is_pyramid, _ in candidates:
-                        if is_pyramid and cteam.id != team.id:
-                            self._set_target(eid, cid, "pyramid")
-                            break
-                else:
-                    if esper.has_component(eid, Target):
-                        esper.remove_component(eid, Target)
+            # Décision de ciblage - MÊME LOGIQUE POUR TOUTES LES UNITÉS
+            # Priorité aux troupes ennemies, puis pyramide si arrivé
+            if best_unit_id is not None:
+                self._set_target(eid, best_unit_id, "unit")
+            elif best_pyramid_id is not None and self._is_arrived(eid):
+                self._set_target(eid, best_pyramid_id, "pyramid")
             else:
-                # Momie et Dromadaire: priorité aux troupes SUR MÊME LANE
-                if best_unit_id is not None:
-                    self._set_target(eid, best_unit_id, "unit")
-                elif best_pyramid_id is not None and self._is_arrived(eid):
-                    self._set_target(eid, best_pyramid_id, "pyramid")
-                else:
-                    if esper.has_component(eid, Target):
-                        esper.remove_component(eid, Target)
+                if esper.has_component(eid, Target):
+                    esper.remove_component(eid, Target)
 
+    # Assigne ou met à jour la cible d'une unité
     def _set_target(self, eid: int, target_id: int, target_type: str):
         """Assigne ou met à jour la cible d'une unité."""
         if esper.has_component(eid, Target):

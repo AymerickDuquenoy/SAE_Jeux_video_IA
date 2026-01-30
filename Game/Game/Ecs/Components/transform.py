@@ -5,6 +5,7 @@ from typing import Tuple
 Vec2 = Tuple[float, float]
 
 @dataclass
+# Composant qui définit la position, rotation et échelle d'une entité dans le monde 2D
 class Transform:
     """Composant ECS décrivant la pose 2D d'une entité en coordonnées monde.
 

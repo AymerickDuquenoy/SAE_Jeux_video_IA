@@ -7,8 +7,14 @@ from typing import Any, Dict
 
 @dataclass
 class BalanceConfig:
+    """
+    Classe représentant une configuration d'équilibrage chargée depuis un fichier JSON.
+    Attributes:
+        data: Dictionnaire contenant les données de configuration.
+    """
     data: Dict[str, Any]
 
+    # Charge une configuration d'équilibrage depuis un fichier JSON
     @classmethod
     def load(cls, path: str) -> "BalanceConfig":
         p = Path(path)
@@ -20,6 +26,7 @@ class BalanceConfig:
 
         return cls(data=data)
 
+    # Accède aux valeurs imbriquées dans la configuration via une séquence de clés
     def get(self, *keys, default=None):
         cur: Any = self.data
         for k in keys:

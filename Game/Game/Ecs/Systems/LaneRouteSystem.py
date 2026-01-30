@@ -23,6 +23,7 @@ class LaneRouteSystem:
     Assigne les chemins pré-calculés (lane_paths) aux unités.
     """
 
+    # Initialise le système de routes avec les lanes et pyramides
     def __init__(
         self,
         lanes_y: list[int],
@@ -37,6 +38,7 @@ class LaneRouteSystem:
         # Tracking des unités
         self.assigned_ents = set()
 
+    # Met à jour les chemins précalculés pour chaque lane
     def set_lane_paths(self, lane_paths: list):
         """Met à jour les chemins pré-calculés (appelé par game_app)."""
         self.lane_paths = [list(p) for p in lane_paths] if lane_paths else [[], [], []]
@@ -44,6 +46,7 @@ class LaneRouteSystem:
         # Forcer le recalcul des chemins pour toutes les unités
         self.assigned_ents.clear()
 
+    # Assigne manuellement une lane à une entité
     def set_lane_for_entity(self, ent: int, lane_idx: int):
         """Assigne une lane à une unité et lui donne le chemin correspondant."""
         lane_idx = max(0, min(2, int(lane_idx)))
@@ -63,6 +66,7 @@ class LaneRouteSystem:
         # Forcer la réassignation du chemin
         self.assigned_ents.discard(int(ent))
 
+    # Trouve l'index de la lane la plus proche d'une position Y
     def _closest_lane_idx(self, y: int) -> int:
         """Trouve la lane la plus proche de la position Y."""
         best_i = 0
@@ -74,6 +78,7 @@ class LaneRouteSystem:
                 best_i = i
         return max(0, min(2, best_i))
 
+    # Trouve le point le plus proche sur un chemin donné
     def _find_closest_point_on_path(self, pos: tuple, path: list) -> int:
         """Trouve l'index du point le plus proche sur le chemin."""
         if not path:
@@ -91,6 +96,7 @@ class LaneRouteSystem:
         
         return best_idx
 
+    # Assigne les chemins précalculés aux unités selon leur lane et équipe
     def process(self, dt: float):
         # Nettoyer les entités qui n'existent plus
         dead_ents = [ent for ent in self.assigned_ents if not esper.entity_exists(ent)]

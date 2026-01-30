@@ -13,11 +13,13 @@ class EconomySystem:
     - Esper appelle .process(dt)
     """
 
+    # Initialise le système économique avec la pyramide joueur et revenus de base
     def __init__(self, player_pyramid_eid: int | None = None, default_income: float = 2.0):
         self.player_pyramid_eid = player_pyramid_eid
         self.default_income = float(default_income)
         self._default_ready = False
 
+    # S'assure que la pyramide joueur a les composants Wallet et IncomeRate
     def _ensure_player_has_income(self):
         if self._default_ready or self.player_pyramid_eid is None:
             return
@@ -38,6 +40,7 @@ class EconomySystem:
 
         self._default_ready = True
 
+    # Ajoute les revenus passifs à toutes les entités avec Wallet et IncomeRate
     def process(self, dt: float):
         self._ensure_player_has_income()
 
@@ -47,6 +50,7 @@ class EconomySystem:
                 wallet.solde = 0.0
 
     # bonus compat si ton World appelle system(dt) ou system(world, dt)
+    # Permet d'appeler le système avec différentes signatures (compatibilité)
     def __call__(self, *args, **kwargs):
         if len(args) == 1:
             return self.process(args[0])  # dt

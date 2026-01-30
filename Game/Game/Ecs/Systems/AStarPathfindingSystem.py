@@ -23,6 +23,7 @@ from Game.Ecs.Components.pathProgress import PathProgress
 Point = Tuple[int, int]
 
 
+# Calcule la distance heuristique entre deux points (Manhattan ou Octile)
 def _heuristic(a: Point, b: Point, diagonal: bool) -> float:
     dx = abs(a[0] - b[0])
     dy = abs(a[1] - b[1])
@@ -33,6 +34,7 @@ def _heuristic(a: Point, b: Point, diagonal: bool) -> float:
     return dx + dy
 
 
+# Retourne les voisins d'une position (4 ou 8 directions selon diagonal)
 def _neighbors_4_8(pos: Point, width: Optional[int], height: Optional[int], diagonal: bool) -> List[Point]:
     x, y = pos
     nbrs = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
@@ -47,6 +49,7 @@ def _neighbors_4_8(pos: Point, width: Optional[int], height: Optional[int], diag
     return out
 
 
+# Algorithme A* utilisant une GridMap avec tuiles et coûts de vitesse
 def astar_gridmap(grid_map, start: Point, goal: Point, allow_diagonal: bool = False) -> Optional[List[Point]]:
     """A* using `GridMap` / `GridTile` objects.
 
@@ -111,6 +114,7 @@ def astar_gridmap(grid_map, start: Point, goal: Point, allow_diagonal: bool = Fa
     return None
 
 
+# Algorithme A* sur une grille 2D numpy (0=libre, 1=bloqué)
 def astar_numpy(grid, start: Point, goal: Point, allow_diagonal: bool = True) -> Optional[List[Point]]:
     """A* over a 2D grid (list of lists), where 0 = free, 1 = blocked.
 
@@ -159,6 +163,7 @@ def astar_numpy(grid, start: Point, goal: Point, allow_diagonal: bool = True) ->
     return None
 
 
+# Fonction dispatcher qui choisit l'implémentation A* selon le type de grille
 def astar(grid_map_or_grid, start: Point, goal: Point, allow_diagonal: bool = False) -> Optional[List[Point]]:
     """Dispatching helper: accepts either a `GridMap` (has `.tiles`) or a 2D grid (list of lists).
 
@@ -170,6 +175,7 @@ def astar(grid_map_or_grid, start: Point, goal: Point, allow_diagonal: bool = Fa
     return astar_numpy(grid_map_or_grid, start, goal, allow_diagonal=allow_diagonal)
 
 
+# Algorithme A* spécialisé pour NavigationGrid avec walkable et movement_cost
 def astar_navgrid(nav_grid, start: Point, goal: Point, allow_diagonal: bool = False) -> Optional[List[Point]]:
     """A* spécialisé pour NavigationGrid (is_walkable + movement_cost)."""
     width = getattr(nav_grid, "width", None)
@@ -225,11 +231,13 @@ class AStarPathfindingSystem(esper.Processor):
     (Phase 1 sans IA : chemin direct vers objectif)
     """
 
+    # Initialise le système de pathfinding avec la grille de navigation
     def __init__(self, nav_grid, *, allow_diagonal: bool = False):
         super().__init__()
         self.nav_grid = nav_grid
         self.allow_diagonal = bool(allow_diagonal)
 
+    # Traite les requêtes de pathfinding et génère les chemins pour les entités
     def process(self, dt: float):
         for ent, (gpos, req) in esper.get_components(GridPosition, PathRequest):
             start = (int(gpos.x), int(gpos.y))
@@ -255,4 +263,3 @@ class AStarPathfindingSystem(esper.Processor):
 
 # alias si tu veux l'importer comme "Processor"
 AStarPathfindingProcessor = AStarPathfindingSystem
-

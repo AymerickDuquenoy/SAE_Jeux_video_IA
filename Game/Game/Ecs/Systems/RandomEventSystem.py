@@ -21,6 +21,7 @@ class RandomEventSystem(esper.Processor):
     Gère les événements aléatoires pendant la partie.
     """
 
+    # Initialise le système d'événements aléatoires avec grille et pyramides
     def __init__(self, nav_grid, player_pyramid_eid: int, enemy_pyramid_eid: int, on_terrain_change=None):
         super().__init__()
         self.nav_grid = nav_grid
@@ -49,12 +50,14 @@ class RandomEventSystem(esper.Processor):
         self.current_message = ""
         self.message_timer = 0.0
 
+    # Retourne le message d'événement actuel s'il y en a un
     def get_message(self) -> str:
         """Retourne le message d'événement actuel."""
         if self.message_timer > 0:
             return self.current_message
         return ""
 
+    # Gère le timing et le déclenchement des événements aléatoires
     def process(self, dt: float):
         if dt <= 0:
             return
@@ -76,8 +79,22 @@ class RandomEventSystem(esper.Processor):
             self.time_since_last_event = 0.0
             self.next_event_time = random.uniform(self.min_interval, self.max_interval)
 
+    # Déclenche un événement aléatoire parmi les 3 types disponibles
     def _trigger_random_event(self):
         """Déclenche un événement aléatoire."""
+        # Jouer le son d'événement
+        try:
+            from Game.Audio.sound_manager import sound_manager
+            sound_manager.play("event")
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.play("event")
+            except:
+                pass
+        except:
+            pass
+        
         event_type = random.choice(["sandstorm", "locusts", "whip_bonus"])
         
         if event_type == "sandstorm":
@@ -87,6 +104,7 @@ class RandomEventSystem(esper.Processor):
         else:
             self._start_whip_bonus()
 
+    # Démarre une tempête de sable qui échange les terrains Open et Dusty
     def _start_sandstorm(self):
         """Tempête de sable : échange zones Open ↔ Dusty."""
         self.active_event = "sandstorm"
@@ -114,6 +132,7 @@ class RandomEventSystem(esper.Processor):
             if self.on_terrain_change:
                 self.on_terrain_change()
 
+    # Démarre une nuée de sauterelles qui inflige 15 dégâts à toutes les troupes
     def _start_locusts(self):
         """Nuée de sauterelles : 15 dégâts à toutes les troupes."""
         self.active_event = "locusts"
@@ -129,6 +148,7 @@ class RandomEventSystem(esper.Processor):
                 continue
             hp.hp = max(0, hp.hp - damage)
 
+    # Démarre un bonus de fouets qui augmente la production d'une équipe de 25%
     def _start_whip_bonus(self):
         """Bonus fouets : +25% production pour une équipe."""
         self.active_event = "whip_bonus"
@@ -146,6 +166,7 @@ class RandomEventSystem(esper.Processor):
             income = esper.component_for_entity(pyramid_eid, IncomeRate)
             income.multiplier = 1.25  # Toujours utiliser multiplier
 
+    # Termine l'événement actif et restaure l'état normal
     def _end_event(self):
         """Termine l'événement actif."""
         if self.active_event == "sandstorm" and self.original_mults:

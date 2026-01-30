@@ -1,12 +1,12 @@
 """
 AIBehaviorSystem - Comportements IA différenciés par type d'unité.
 
-Selon le Game Design SAÉ:
+TOUTES les unités combattent les ennemis sur leur lane :
 - Momie (S): Combat sur sa lane
-- Dromadaire (M): Combat sur sa lane
-- Sphinx (L): Siège - ignore les troupes, cible directement la pyramide
+- Dromadaire (M): Combat sur sa lane  
+- Sphinx (L): Combat sur sa lane (comme les autres)
 
-Version optimisée O(n) - pas de flocking.
+Version optimisée O(n).
 """
 import esper
 
@@ -20,39 +20,16 @@ from Game.Ecs.Components.target import Target
 class AIBehaviorSystem(esper.Processor):
     """
     Comportements IA simplifiés - optimisé O(n).
-    Seul le Sphinx a un comportement spécial (ignore les troupes).
+    Toutes les unités ont le même comportement de combat.
     """
 
+    # Initialise le système IA avec la liste des pyramides protégées
     def __init__(self, pyramid_ids: set[int]):
         super().__init__()
         self.pyramid_ids = set(int(x) for x in pyramid_ids)
 
-    def _get_unit_type(self, stats: UnitStats) -> str:
-        """Détermine le type d'unité (S/M/L) basé sur power."""
-        power = getattr(stats, 'power', 0)
-        if power <= 9:
-            return "S"  # Momie
-        elif power <= 14:
-            return "M"  # Dromadaire
-        else:
-            return "L"  # Sphinx
-
+    # Traite le comportement IA (actuellement délégué à d'autres systèmes)
     def process(self, dt: float):
-        if dt <= 0:
-            return
-
-        for eid, (t, team, stats) in esper.get_components(Transform, Team, UnitStats):
-            # Vérifier que l'unité est vivante
-            if esper.has_component(eid, Health):
-                hp = esper.component_for_entity(eid, Health)
-                if hp.is_dead:
-                    continue
-
-            unit_type = self._get_unit_type(stats)
-
-            # Sphinx: siège - retire la cible si c'est une unité
-            if unit_type == "L":
-                if esper.has_component(eid, Target):
-                    target = esper.component_for_entity(eid, Target)
-                    if target.type == "unit":
-                        esper.remove_component(eid, Target)
+        # Ce système ne fait plus rien de spécial
+        # Le ciblage et le combat sont gérés par TargetingSystem et CombatSystem
+        pass

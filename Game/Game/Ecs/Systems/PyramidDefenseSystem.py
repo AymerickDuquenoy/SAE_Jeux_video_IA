@@ -16,6 +16,7 @@ from Game.Ecs.Components.projectile import Projectile
 from Game.Ecs.Components.lifetime import Lifetime
 
 
+# Retourne le signe d'un nombre (1.0 ou -1.0)
 def _sign(x: float) -> float:
     return 1.0 if x >= 0 else -1.0
 
@@ -25,6 +26,7 @@ class PyramidDefenseSystem(esper.Processor):
     Système de défense automatique des pyramides.
     """
 
+    # Initialise le système de défense des pyramides avec portée et dégâts
     def __init__(self, pyramid_ids: set[int], attack_range: float = 3.0, 
                  damage: float = 8.0, cooldown: float = 1.2, projectile_speed: float = 10.0):
         super().__init__()
@@ -38,6 +40,7 @@ class PyramidDefenseSystem(esper.Processor):
         # Cooldown par pyramide
         self.timers = {pid: 0.0 for pid in self.pyramid_ids}
 
+    # Fait tirer les pyramides sur les ennemis alignés axialement à portée
     def process(self, dt: float):
         if dt <= 0:
             return

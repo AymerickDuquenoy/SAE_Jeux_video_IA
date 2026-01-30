@@ -19,6 +19,7 @@ class UpgradeSystem:
     - Esper appelle .process(dt)
     """
 
+    # Initialise le système d'upgrade avec la pyramide, bonus et coûts
     def __init__(
         self,
         player_pyramid_eid: int,
@@ -49,9 +50,11 @@ class UpgradeSystem:
         self._requested = False
         self.last_message = ""
 
+    # Demande une amélioration de pyramide (sera traitée au prochain process)
     def request_upgrade(self):
         self._requested = True
 
+    # S'assure que la pyramide a tous les composants nécessaires
     def _ensure_components(self):
         eid = self.player_pyramid_eid
 
@@ -73,6 +76,7 @@ class UpgradeSystem:
         except Exception:
             esper.add_component(eid, PyramidLevel(level=1))
 
+    # Retourne le coût pour passer au niveau suivant
     def _get_upgrade_cost(self, current_level: int) -> float:
         """Retourne le coût pour passer au niveau suivant."""
         idx = current_level - 1  # niveau 1 -> index 0, niveau 2 -> index 1, etc.
@@ -80,6 +84,7 @@ class UpgradeSystem:
             return float(self.upgrade_costs[idx])
         return 99999.0  # Coût impossible si hors limites
 
+    # Traite les demandes d'upgrade et améliore la pyramide si possible
     def process(self, dt: float):
         if not self._requested:
             return
@@ -122,8 +127,22 @@ class UpgradeSystem:
         income.rate = float(income.rate) * self.prod_multiplier
 
         self.last_message = f"Upgrade pyramide -> niveau {level.level}."
+        
+        # Son d'upgrade
+        try:
+            from Game.Audio.sound_manager import sound_manager
+            sound_manager.play("upgrade")
+        except ImportError:
+            try:
+                from Audio.sound_manager import sound_manager
+                sound_manager.play("upgrade")
+            except:
+                pass
+        except:
+            pass
 
     # bonus : permet aussi de fonctionner si ton World appelle system(dt) ou system(world, dt)
+    # Permet d'appeler le système avec différentes signatures (compatibilité)
     def __call__(self, *args, **kwargs):
         if len(args) == 1:
             return self.process(args[0])  # dt
