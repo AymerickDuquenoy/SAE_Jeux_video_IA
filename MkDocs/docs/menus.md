@@ -1,6 +1,6 @@
 # Menus du jeu
 
-Antique War dispose de plusieurs menus permettant au joueur de configurer le jeu et d’accéder aux différentes fonctionnalités.
+Antique War dispose de plusieurs menus permettant au joueur de configurer le jeu et de choisir les paramètres de la partie avant de jouer.
 
 Ces menus sont accessibles avant le lancement d’une partie.
 
@@ -12,32 +12,25 @@ Ces menus sont accessibles avant le lancement d’une partie.
 
 Le menu principal est affiché au lancement du jeu.
 
-Il permet d’accéder aux différentes sections suivantes :
+Il permet d’accéder aux sections suivantes :
 
-- Jouer : lance une nouvelle partie
-- Options : ouvre le menu des options
-- Commandes : affiche les contrôles du jeu
+- Jouer : permet de lancer une partie et de choisir le mode de jeu
+- Options : ouvre le menu de configuration
+- Commandes : affiche et permet de modifier les contrôles
 - Quitter : ferme le jeu
 
 ---
 
-## Menu Options
+## Menu Mode de jeu
 
-![Menu Options](images/options.png)
+![Menu Mode de jeu](images/Mode_de_jeu.png)
 
-Le menu Options permet d’activer ou de désactiver certaines aides visuelles pendant la partie.
+Le menu Mode de jeu permet de sélectionner le type de partie.
 
-Les options disponibles sont :
+Deux modes sont disponibles :
 
-### Afficher les lanes
-Affiche les chemins correspondant aux trois lanes du jeu.  
-Les lanes du joueur sont affichées en cyan et celles de l’ennemi en orange.
-
-### Afficher les zones de terrain
-Affiche les différentes zones du terrain, notamment les zones ralenties et interdites.
-
-### Afficher les chemins des unités
-Affiche le trajet emprunté par chaque unité en temps réel.
+- Solo (vs IA) : le joueur affronte une intelligence artificielle
+- 1v1 local : deux joueurs jouent sur le même clavier
 
 ---
 
@@ -45,7 +38,7 @@ Affiche le trajet emprunté par chaque unité en temps réel.
 
 ![Menu Difficulté](images/Difficultes.png)
 
-Le menu Difficulté permet de choisir le niveau de difficulté de la partie.
+En mode Solo (vs IA), un écran de difficulté permet de définir le niveau de l’intelligence artificielle.
 
 Les niveaux disponibles sont :
 
@@ -54,7 +47,35 @@ Les niveaux disponibles sont :
 - Difficile : revenus ennemis ×1,5
 - Extrême : revenus ennemis ×2,0
 
-Le niveau de difficulté influence la production de ressources de l’ennemi.
+Ce choix modifie la production de ressources de l’ennemi.
+
+---
+
+## Menu Options
+
+![Menu Options](images/options.png)
+
+Le menu Options permet de configurer l’affichage, le jeu et l’audio.
+
+### Affichage
+
+- Plein écran : active ou désactive le mode plein écran
+- Résolution : permet de choisir la résolution de la fenêtre de jeu
+
+Les changements sont appliqués à l’aide du bouton Appliquer.
+
+### Jeu
+
+Ces options modifient l’affichage de certaines informations pendant une partie :
+
+- Lanes : affiche les chemins des lanes
+- Terrain : affiche les zones de terrain spécifiques
+- Chemins : affiche le trajet emprunté par les unités
+
+### Audio
+
+- Sons : active ou désactive les effets sonores
+- Musique : active ou désactive la musique
 
 ---
 
@@ -62,13 +83,14 @@ Le niveau de difficulté influence la production de ressources de l’ennemi.
 
 ![Menu Commandes](images/commandes.png)
 
-Le menu Commandes affiche les contrôles du jeu.
+Le menu Commandes affiche les contrôles du jeu pour les deux joueurs.
 
-Les principales commandes sont :
+Les commandes sont réparties entre Joueur 1 et Joueur 2.
 
-- Déplacement de la caméra : flèches directionnelles
-- Sélection de la lane : Z / X / C ou W / X / C
-- Sélection de la lane via l’interface : boutons Lane 1, 2 et 3
-- Invocation des unités : touches 1, 2 et 3
-- Amélioration de la pyramide : touche U
-- Pause : touche Échap
+### Actions disponibles
+
+- sélection des lanes (Lane 1, Lane 2, Lane 3)
+- invocation des unités (Momie, Dromadaire, Sphinx)
+- amélioration de la pyramide
+
+Les touches peuvent être modifiées en cliquant sur la commande correspondante.
