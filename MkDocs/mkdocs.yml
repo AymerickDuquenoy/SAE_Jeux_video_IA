@@ -40,6 +40,7 @@ nav:
       - Présentation du jeu: presentation.md
       - Objectif & Règles: objectifs.md
   - Jouer une Partie:
+      - Menues Principaux: menus.md
       - Interface du jeu: interface.md
       - Unités: unites.md
       - Terrains & Obstacles: terrains.md

@@ -1,11 +1,11 @@
 # Interface du jeu
 
+Avant de lancer une partie, il est recommandé de consulter la section [Menus du jeu](menus.md) afin de comprendre les différentes options disponibles et la configuration du jeu.
+
+
 L’interface d’Antique War permet au joueur d’accéder rapidement aux informations essentielles et d’interagir avec le jeu pendant une partie.
 
 Elle est organisée autour de plusieurs zones distinctes à l’écran.
-
-![Interface du jeu](./images/Interface.png)
-
 
 ## Vue d’ensemble
 

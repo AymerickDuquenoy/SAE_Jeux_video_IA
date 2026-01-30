@@ -10,7 +10,7 @@ Un seul évènement est actif à la fois.
 ## Tempête de sable
 
 - Durée : ~10 secondes.
-- Effet : **inversion** des zones rapides et lentes sur le terrain.
+- Effet : inversion des zones rapides et lentes sur le terrain.
   - Des zones normalement rapides deviennent lentes.
   - Des zones lentes peuvent devenir plus avantageuses.
 
@@ -23,7 +23,7 @@ Impact :
 
 ## Nuée de sauterelles
 
-- Effet : inflige **15 points de dégâts** à **toutes les unités présentes** sur le terrain.
+- Effet : inflige 15 points de dégâts à toutes les unités présentes sur le terrain.
 - Ne fait pas de distinction entre vos troupes et celles de l’adversaire.
 
 Impact :
@@ -35,9 +35,9 @@ Impact :
 
 ## Livraison de coups de fouet
 
-- Effet : **augmentation temporaire de la production de 𓍯** de ×1,25.
+- Effet : augmentation temporaire de la production de 𓍯 de ×1,25.
 - Durée : ~10 secondes.
-- S’applique à un **joueur choisi aléatoirement**.
+- S’applique à un joueur choisi aléatoirement.
 
 Conseil :
 
@@ -49,6 +49,6 @@ Conseil :
 
 ## Comment réagir aux évènements
 
-- **Observez le terrain** : ne foncez pas tête baissée.
+- Observez le terrain : ne foncez pas tête baissée.
 - Gardez parfois un peu de ressources de côté pour pouvoir réagir.
 - Surveillez la vie de vos unités : une nuée peut finir ce que l’ennemi a commencé.

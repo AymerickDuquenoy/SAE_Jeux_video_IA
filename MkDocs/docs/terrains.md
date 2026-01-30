@@ -33,31 +33,3 @@ Caractéristiques :
 | Effet | Valeur |
 |-----|-------|
 | Vitesse des unités | Vitesse maximale / 2 |
-
-## Obstacles
-
-Certains éléments du décor sont infranchissables et bloquent le passage des unités.
-
-Les unités doivent alors contourner ces éléments.
-
-### Cactus
-
-![Cactus](images/Cactus.png)
-
-Les cactus bloquent totalement le déplacement des unités.
-
-### Palmiers
-
-![Palmiers](images/Palmier.png)
-
-Les palmiers bloquent également le déplacement des unités.
-
-## Impact sur le déplacement
-
-La présence de terrains et d’obstacles modifie les trajectoires des unités.
-
-Les unités :
-
-- évitent automatiquement les obstacles ;
-- adaptent leur chemin en fonction du terrain ;
-- peuvent être ralenties selon la zone traversée.
